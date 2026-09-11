@@ -661,6 +661,46 @@ nav {
   opacity: 1;
   transform: translate(-50%, 0);
 }
+.faction-picker {
+  border: 0;
+  padding: 0;
+  margin: 20px 0;
+}
+.faction-picker legend {
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+.faction-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.faction-card {
+  padding: 14px;
+  border: 1px solid #69786e;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.faction-card:has(input:checked) {
+  border-color: #75e4c0;
+  background: #274c44;
+}
+.faction-card input {
+  margin-right: 8px;
+  accent-color: #75e4c0;
+}
+.faction-card small {
+  display: block;
+  margin-top: 8px;
+}
+.progress-label span {
+  max-width: 85%;
+}
+@media (max-width: 520px) {
+  .faction-cards {
+    grid-template-columns: 1fr;
+  }
+}
 dialog {
   background: #15363c;
   color: #e8e9db;

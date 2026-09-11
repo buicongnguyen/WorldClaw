@@ -6,6 +6,8 @@ New expeditions use **17×17 islands**, eight neutral villages and a 40-round li
 
 **[Play on GitHub Pages](https://buicongnguyen.github.io/WorldClaw/)**
 
+Choose from **four factions** in New island: Canopy, Ember, Stoneward or Tidewell. Each starts with a different technology/unit combination, a permanent trait, and an exclusive advanced research branch. You can also choose the AI faction. See [faction rules and save compatibility](docs/FACTIONS.md). Older saves retain classic rules.
+
 Original low-poly meshes, names and rules inspired by compact turn-based 4X games such as The Battle of Polytopia. This is an independent single-player prototype, not affiliated with Midjiwan or Tencent.
 
 Visual upgrade: 19 Blender-built medieval models, packed PBR materials, detailed soldiers/buildings/vegetation, and improved lighting. Select a tile and use **◎** to inspect it closely. See the [editable Blender pipeline](docs/BLENDER.md) and [art review](docs/ART_REVIEW.md).

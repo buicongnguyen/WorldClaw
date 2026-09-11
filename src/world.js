@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { loadArt, rebuildBatches } from "./art.js";
+import { armyColor } from "./factions.js";
 import { SIZE, mapSize, UNITS, reachable, targets } from "./game.js";
 
 const colors = {
@@ -11,8 +12,8 @@ const colors = {
   mountain: [0x8d8b76],
   fog: [0x526569, 0x596c70],
 };
-export const factionColors = [0x75e4c0, 0xed9375];
 export function createWorld(host, onPick) {
+  let factionColors = [0x75e4c0, 0xed9375];
   let boardSize = SIZE,
     center = (SIZE - 1) / 2;
   let needsFrame = true;
@@ -214,6 +215,8 @@ export function createWorld(host, onPick) {
     labelItems.push({ el, pos: new THREE.Vector3(x, y, z) });
   }
   function rebuild(s) {
+    factionColors = [armyColor(s, 0), armyColor(s, 1)];
+    art?.setColors(factionColors);
     board.clear();
     labels.replaceChildren();
     labelItems = [];
@@ -597,7 +600,12 @@ export function createWorld(host, onPick) {
     }
     state = s;
     selected = selectedTile;
-    const signature = JSON.stringify([s.tiles, s.units, s.explored[0]]);
+    const signature = JSON.stringify([
+      s.tiles,
+      s.units,
+      s.explored[0],
+      s.players.map((p) => p.faction),
+    ]);
     if (signature !== lastSignature) {
       rebuild(s);
       lastSignature = signature;
@@ -725,6 +733,7 @@ export function createWorld(host, onPick) {
           state.tiles,
           state.units,
           state.explored[0],
+          state.players.map((p) => p.faction),
         ]);
       }
       return true;

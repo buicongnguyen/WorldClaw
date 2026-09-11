@@ -94,7 +94,7 @@ test("research graph is acyclic, complete, and gated without charging", () => {
       next = TECHS[next].requires;
     }
   }
-  for (const key of Object.keys(TECHS))
+  for (const key of Object.keys(TECHS).filter((key) => !TECHS[key].faction))
     s = act(s, { type: "research", tech: key });
   assert.equal(s.players[0].tech.length, 10);
 });

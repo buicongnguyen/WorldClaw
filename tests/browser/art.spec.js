@@ -7,7 +7,7 @@ test("detailed Blender scene loads, batches a full island and supports close-up 
   test.setTimeout(60000);
   const s = createGame(417, 17);
   s.explored[0] = s.tiles.map((t) => t.id);
-  s.players[0].tech = Object.keys(TECHS);
+  s.players[0].tech = Object.keys(TECHS).filter((key) => !TECHS[key].faction);
   const capital = s.tiles.find((t) => t.city?.capital === 0);
   capital.city.level = 3;
   capital.city.specialization = "market";

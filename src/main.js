@@ -7,7 +7,6 @@ import {
   unitAt,
   UNITS,
   TECHS,
-  FACTIONS,
   GOAL,
   reachable,
   targets,
@@ -23,7 +22,16 @@ import {
   promotionReason,
   migrateSave,
   BUILDINGS,
+  buildingCost,
+  healAmount,
 } from "./game.js";
+import {
+  FACTION_TYPES,
+  PLAYABLE_FACTIONS,
+  faction,
+  factionId,
+  factionName,
+} from "./factions.js";
 import { SPECIALIZATIONS } from "./progression.js";
 import { createWorld } from "./world.js";
 
@@ -37,7 +45,7 @@ const escape = (value) =>
       ],
   );
 let saveNotice = "",
-  state = createGame(417, 17),
+  state = createGame(417, 17, ["canopy", "ember"]),
   selectedTile = state.units[0].tile,
   selectedUnit = 1,
   busy = false,
@@ -49,9 +57,9 @@ try {
     const saved = JSON.parse(raw);
     if (validateSave(saved)) {
       state = migrateSave(saved);
-      if (saved.version === 1)
+      if (saved.version < 3)
         saveNotice =
-          "Save upgraded: your cities, estates and learned technology are preserved.";
+          "Save preserved with classic rules. Choose New island to try faction abilities.";
       selectedUnit = state.units.find((u) => u.owner === 0)?.id ?? null;
       selectedTile =
         state.units.find((u) => u.id === selectedUnit)?.tile ??
@@ -173,6 +181,16 @@ function gatedButton(label, action, reason) {
 }
 function render() {
   const p = state.players[0];
+  const identity = faction(state, 0),
+    rival = faction(state, 1);
+  $(".realm-card h2").textContent =
+    `${identity.emblem} ${factionName(state, 0)}`;
+  $(".realm-card > p").textContent = identity.trait;
+  $(".progress-label:not(.rival) span").textContent =
+    `You · ${factionName(state, 0)}`;
+  $(".progress-label.rival span").textContent =
+    `Rival · ${factionName(state, 1)}`;
+  $(".progress-label.rival").title = rival.trait;
   $("#stars").textContent = p.stars;
   $("#income").textContent = `+${income(state, 0)} / turn`;
   $("#round").innerHTML =
@@ -195,7 +213,7 @@ function render() {
     state.winner !== null
       ? "Expedition complete"
       : busy || state.active === 1
-        ? "Ember is planning…"
+        ? `${factionName(state, 1)} is planning…`
         : "Your turn";
   $("#turn-hint").textContent =
     saveNotice ||
@@ -249,13 +267,13 @@ function render() {
       !state.tiles[u.tile].occupation
     )
       html += actionButton(
-        "Rest · recover 4 HP",
+        `Rest · recover ${healAmount(state, u)} HP`,
         { type: "heal", unit: u.id },
         busy,
       );
     html +=
       '<p class="selection-tip">Select a mint outline to move. Select a rival to preview combat.</p>';
-    html += `<p class="unit-status">${u.xp} XP · Veteran ${u.rank}/2${u.promotion ? ` · ${u.promotion}` : ""}. Combat survival +1 XP; defeat an enemy +3; capture +2.</p>`;
+    html += `<p class="unit-status">${u.xp} XP · Veteran ${u.rank}/2${u.promotion ? ` · ${u.promotion}` : ""}. Combat survival +1 XP; defeat an enemy +${factionId(state, u.owner) === "ember" ? 4 : 3}; capture +2.</p>`;
     if (u.rank < 2)
       for (const choice of u.promotion
         ? [u.promotion]
@@ -267,9 +285,9 @@ function render() {
         );
   }
   if (known) {
-    html += `<div class="tile-info"><strong>${escape(t.city?.name ?? (t.beacon ? "Ancient beacon" : terrainName[t.terrain]))}</strong><small>${t.owner === null ? "Unclaimed" : FACTIONS[t.owner]}${t.city ? ` · Level ${t.city.level}` : t.improved ? ` · ${BUILDINGS[t.building].name}` : ""}</small></div>`;
+    html += `<div class="tile-info"><strong>${escape(t.city?.name ?? (t.beacon ? "Ancient beacon" : terrainName[t.terrain]))}</strong><small>${t.owner === null ? "Unclaimed" : factionName(state, t.owner)}${t.city ? ` · Level ${t.city.level}` : t.improved ? ` · ${BUILDINGS[t.building].name}` : ""}</small></div>`;
     if (t.occupation)
-      html += `<p class="combat-preview">⚑ ${FACTIONS[t.occupation.owner]} is occupying this city. Capture completes after ${FACTIONS[t.owner]}'s turn. Remove the occupier to restore income.</p>`;
+      html += `<p class="combat-preview">⚑ ${factionName(state, t.occupation.owner)} is occupying this city. Capture completes after ${factionName(state, t.owner)}'s turn. Remove the occupier to restore income.</p>`;
     if (t.territory !== null)
       html += `<p class="selection-tip">Territory: ${escape(state.explored[0].includes(t.territory) ? state.tiles[t.territory].city.name : "Uncharted settlement")}</p>`;
     if (t.owner === 0) {
@@ -300,7 +318,7 @@ function render() {
               : "farm";
         if (!t.improved || kind === "farm2")
           html += gatedButton(
-            `Build ${BUILDINGS[kind].name}<small>✦ ${BUILDINGS[kind].cost} · +${BUILDINGS[kind].income} total income</small>`,
+            `Build ${BUILDINGS[kind].name}<small>✦ ${buildingCost(state, kind, 0)} · +${BUILDINGS[kind].income} base income</small>`,
             { type: "improve", tile: t.id, kind },
             developmentReason(state, t, "improve", kind),
           );
@@ -341,6 +359,9 @@ function showResearch() {
     `<span class="eyebrow">THE COUNCIL OF KNOWLEDGE</span><h2>Ideas become empires.</h2><p>Spend stars now. Open new possibilities for every turn ahead.</p><div class="tech-list">${Object.entries(
       TECHS,
     )
+      .filter(
+        ([, tech]) => !tech.faction || tech.faction === factionId(state, 0),
+      )
       .map(
         ([key, tech]) =>
           `<article><span class="tech-icon">${tech.branch === "Military" ? "➶" : tech.branch === "Economy" ? "♧" : "♜"}</span><div><small>${tech.branch}${tech.requires ? ` · ${TECHS[tech.requires].name} →` : " · Foundation"}</small><h3>${tech.name}</h3><p>${tech.description}</p><small class="action-reason">${researchReason(state, key)}</small></div><button data-tech="${key}" ${researchReason(state, key) || state.active !== 0 || state.winner !== null ? "disabled" : ""}>${state.players[0].tech.includes(key) ? "Learned" : `✦ ${tech.cost}`}</button></article>`,
@@ -358,7 +379,7 @@ function showResearch() {
 function showHelp() {
   const limitDescription = `This ${mapSize(state)}×${mapSize(state)} island lasts at most ${roundLimit(state)} rounds.`;
   modal(
-    `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your scout.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles and charted land stays visible.</li><li><b>Grow your realm.</b> Neutral villages transfer immediately. Enemy cities require occupation through one defender turn; leaving or dying cancels capture, and contested city territory produces no income. Select an empty owned city to recruit; newly recruited units act next turn. Research Agriculture, build two farms, then specialize your city as a Market or Barracks. Engineering unlocks Walls or a Workshop at level III.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water and peaks cannot be crossed.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown after both factions finish a round. Reach at least 12 and lead in renown to win; equal totals continue. Alternatively, complete occupation of the rival capital. After ${roundLimit(state)} rounds, renown, then city count, then surviving HP decide the winner.</li><li><b>Develop your veterans.</b> Combat and captures earn XP. At a friendly Barracks, an unused unit can train at 3 XP (Training, 4 stars) and 6 XP (Tactics, 7 stars). Pick mobility or resilience; training consumes the turn and preserves damage percentage. Logistics unlocks roads; both endpoints must be friendly roads for half-cost movement.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
+    `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your starting army.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles (four for Canopy scouts) and charted land stays visible.</li><li><b>Grow your realm.</b> Neutral villages transfer immediately. Enemy cities require occupation through one defender turn; leaving or dying cancels capture, and contested city territory produces no income. Select an empty owned city to recruit; newly recruited units act next turn. Research Agriculture, build two farms, then specialize your city as a Market or Barracks. Engineering unlocks Walls or a Workshop at level III.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water and peaks cannot be crossed.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown after both factions finish a round. Reach at least 12 and lead in renown to win; equal totals continue. Alternatively, complete occupation of the rival capital. After ${roundLimit(state)} rounds, renown, then city count, then surviving HP decide the winner.</li><li><b>Develop your veterans.</b> Combat and captures earn XP. At a friendly Barracks, an unused unit can train at 3 XP (Training, 4 stars) and 6 XP (Tactics, 7 stars). Pick mobility or resilience; training consumes the turn and preserves damage percentage. Logistics unlocks roads; both endpoints must be friendly roads for half-cost movement.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
   );
   const limitNote = document.createElement("p");
   limitNote.textContent = limitDescription;
@@ -370,6 +391,17 @@ function showNewGame() {
       Math.floor(Math.random() * 99999) +
       '"></label><label class="seed-label">Island size<select id="map-size"><option value="17">Expedition · 17 × 17 · 40 rounds</option><option value="11">Quick skirmish · 11 × 11 · 30 rounds</option></select></label><button class="primary action" id="start-new">Set sail →</button>',
   );
+  const choices = document.createElement("div");
+  choices.innerHTML = `<fieldset class="faction-picker"><legend>Choose your people</legend><div class="faction-cards">${PLAYABLE_FACTIONS.map(
+    (key) => {
+      const f = FACTION_TYPES[key],
+        d = TECHS[f.doctrine];
+      return `<label class="faction-card"><input type="radio" name="faction" value="${key}" ${key === "canopy" ? "checked" : ""}><strong>${f.emblem} ${f.name}</strong><small>${f.style}</small><p>Start: ${TECHS[f.tech].name} + ${UNITS[f.unit].name}</p><p>${f.trait}</p><small>Develop: ${d.name} after ${TECHS[d.requires].name} · ✦ ${d.cost}</small></label>`;
+    },
+  ).join(
+    "",
+  )}</div></fieldset><label class="seed-label">Rival faction<select id="rival-faction">${PLAYABLE_FACTIONS.map((key) => `<option value="${key}" ${key === "ember" ? "selected" : ""}>${FACTION_TYPES[key].name}</option>`).join("")}</select></label><p class="selection-tip">Same-faction matches are allowed; team colors remain distinct. Abilities apply to new islands only.</p>`;
+  $("#start-new").before(choices);
   $("#start-new").onclick = () => {
     const n = Number($("#seed").value);
     if (!Number.isInteger(n) || n < 0 || n > 4294967295) {
@@ -377,7 +409,10 @@ function showNewGame() {
       $("#seed").reportValidity();
       return;
     }
-    state = createGame(n, Number($("#map-size").value));
+    state = createGame(n, Number($("#map-size").value), [
+      $("input[name=faction]:checked").value,
+      $("#rival-faction").value,
+    ]);
     selectedUnit = 1;
     selectedTile = state.units[0].tile;
     busy = false;
@@ -390,7 +425,7 @@ function showNewGame() {
 }
 function showResult() {
   modal(
-    `<span class="eyebrow">EXPEDITION COMPLETE</span><h2>${state.winner === 0 ? "The canopy endures." : state.winner === -1 ? "A shared horizon." : "Embers take the crown."}</h2><p>${escape(state.reason)}</p><div class="result-score"><b>${state.players[0].renown}<small>YOUR RENOWN</small></b><span>◇</span><b>${state.players[1].renown}<small>EMBER RENOWN</small></b></div><button class="primary action" id="again">Explore another island →</button>`,
+    `<span class="eyebrow">EXPEDITION COMPLETE</span><h2>${state.winner === -1 ? "A shared horizon." : factionId(state, state.winner) !== "classic" ? `${factionName(state, state.winner)} triumphs.` : state.winner === 0 ? "The canopy endures." : "Embers take the crown."}</h2><p>${escape(state.reason)}</p><div class="result-score"><b>${state.players[0].renown}<small>YOUR RENOWN</small></b><span>◇</span><b>${state.players[1].renown}<small>RIVAL RENOWN</small></b></div><button class="primary action" id="again">Explore another island →</button>`,
   );
   $("#again").onclick = showNewGame;
 }

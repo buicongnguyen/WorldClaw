@@ -32,7 +32,11 @@ export async function loadArt() {
   for (const [name, object] of prototypes)
     if (!object) throw new Error(`Missing Blender model: ${name}`);
   const factionMaterials = new Map();
+  let teamColors = [0x75e4c0, 0xed9375];
   return {
+    setColors(colors) {
+      teamColors = colors;
+    },
     add(
       parent,
       name,
@@ -51,16 +55,13 @@ export async function loadArt() {
         if (!child.isMesh) return;
         child.castShadow = child.receiveShadow = true;
         if (["Faction_cloth", "Beacon_crystal"].includes(child.material.name)) {
-          const key = `${child.material.uuid}:${owner}`;
+          const key = `${child.material.uuid}:${owner}:${teamColors[owner]}`;
           if (!factionMaterials.has(key)) {
             const mat = child.material.clone();
-            mat.color.set(
-              owner === 0 ? 0x397a69 : owner === 1 ? 0xa14d37 : 0x666d67,
-            );
+            mat.color.set(owner === null ? 0x666d67 : teamColors[owner]);
+            mat.color.multiplyScalar(0.65);
             if (child.material.name === "Beacon_crystal") {
-              mat.color.set(
-                owner === 0 ? 0x75d8b7 : owner === 1 ? 0xe58e65 : 0xe5ce83,
-              );
+              mat.color.set(owner === null ? 0xe5ce83 : teamColors[owner]);
               mat.emissive.copy(mat.color).multiplyScalar(0.3);
             }
             factionMaterials.set(key, mat);

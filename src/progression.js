@@ -1,5 +1,40 @@
 // Shared registries and derived rules: the UI and command engine use the same gates.
+import { factionId } from "./factions.js";
 export const TECHS = {
+  groveguard: {
+    name: "Groveguard",
+    faction: "canopy",
+    requires: "training",
+    cost: 12,
+    branch: "Faction mastery",
+    description: "Your units gain +1 damage protection in forests.",
+  },
+  firecraft: {
+    name: "Firecraft",
+    faction: "ember",
+    requires: "tactics",
+    cost: 12,
+    branch: "Faction mastery",
+    description:
+      "Your archers gain +1 attack, including combat previews and retaliation.",
+  },
+  shieldwall: {
+    name: "Shieldwall",
+    faction: "stone",
+    requires: "engineering",
+    cost: 12,
+    branch: "Faction mastery",
+    description:
+      "Guardians and sentinels gain +1 protection on friendly, uncontested land.",
+  },
+  granaries: {
+    name: "Grand Granaries",
+    faction: "tide",
+    requires: "commerce",
+    cost: 12,
+    branch: "Faction mastery",
+    description: "Farm II and Markets each produce +1 additional income.",
+  },
   agriculture: {
     name: "Agriculture",
     cost: 6,
@@ -119,6 +154,9 @@ export const SPECIALIZATIONS = {
   },
 };
 export const has = (s, owner, tech) => s.players[owner].tech.includes(tech);
+export const buildingCost = (s, kind, owner = s.active) =>
+  BUILDINGS[kind].cost -
+  (kind === "farm" && factionId(s, owner) === "tide" ? 1 : 0);
 export const contested = (s, tile) =>
   !!(
     tile.occupation ||
@@ -127,6 +165,8 @@ export const contested = (s, tile) =>
 export function researchReason(s, key) {
   const def = Object.hasOwn(TECHS, key) ? TECHS[key] : null;
   if (!def) return "Unknown technology.";
+  if (def.faction && def.faction !== factionId(s, s.active))
+    return "Exclusive to another faction.";
   if (has(s, s.active, key)) return "Already learned.";
   if (def.requires && !has(s, s.active, def.requires))
     return `Requires ${TECHS[def.requires].name}.`;
@@ -185,7 +225,7 @@ export function developmentReason(s, t, type, kind) {
       kind === "farm2" ? !["farm", "estate"].includes(t.building) : t.improved
     )
       return "This building cannot be developed further.";
-    cost = def.cost;
+    cost = buildingCost(s, kind);
   }
   return p.stars < cost ? `Needs ${cost} stars.` : "";
 }
@@ -233,6 +273,12 @@ export function assignTerritories(s, preserve = false) {
 }
 export function migrateSave(raw) {
   const s = structuredClone(raw);
+  if (s.version === 3) return s;
+  if (s.version === 2) {
+    s.version = 3;
+    for (const p of s.players) p.faction = "classic";
+    return s;
+  }
   if (s.version !== 1) return s;
   s.version = 2;
   for (const t of s.tiles) {
@@ -247,5 +293,5 @@ export function migrateSave(raw) {
   for (const u of s.units)
     Object.assign(u, { xp: 0, rank: 0, promotion: null });
   assignTerritories(s, true);
-  return s;
+  return migrateSave(s);
 }

@@ -9,7 +9,9 @@ import {
   promotionReason,
   assignTerritories,
   migrateSave,
+  buildingCost,
 } from "./progression.js";
+import { FACTION_TYPES, faction, factionId, factionName } from "./factions.js";
 export {
   TECHS,
   BUILDINGS,
@@ -17,6 +19,7 @@ export {
   developmentReason,
   promotionReason,
   migrateSave,
+  buildingCost,
 } from "./progression.js";
 export const SIZE = 11;
 export const MAP_SIZES = [11, 17];
@@ -36,7 +39,10 @@ export function unitStats(s, u) {
   return {
     ...base,
     hp: base.hp + (u.promotion === "resilience" ? 2 * rank : 0),
-    attack: base.attack + rank,
+    attack:
+      base.attack +
+      rank +
+      (u.type === "archer" && has(s, u.owner, "firecraft") ? 1 : 0),
     move:
       base.move +
       (has(s, u.owner, "trails") ? 1 : 0) +
@@ -67,14 +73,24 @@ function random(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-export function createGame(seed = 417, size = SIZE) {
+export function createGame(
+  seed = 417,
+  size = SIZE,
+  factions = ["classic", "classic"],
+) {
   if (!MAP_SIZES.includes(size)) throw new Error("Unsupported island size");
+  if (
+    !Array.isArray(factions) ||
+    factions.length !== 2 ||
+    !factions.every((key) => Object.hasOwn(FACTION_TYPES, key))
+  )
+    throw new Error("Choose two valid factions");
   const at = (x, z) => idAt(x, z, size);
   const center = (size - 1) / 2;
   const last = size - 1;
   const rng = random(seed);
   const s = {
-    version: 2,
+    version: 3,
     size,
     seed: seed >>> 0,
     round: 1,
@@ -84,7 +100,12 @@ export function createGame(seed = 417, size = SIZE) {
     reason: "",
     tiles: [],
     units: [],
-    players: [0, 1].map(() => ({ stars: 12, renown: 0, tech: [] })),
+    players: factions.map((key) => ({
+      stars: 12,
+      renown: 0,
+      faction: key,
+      tech: FACTION_TYPES[key].tech ? [FACTION_TYPES[key].tech] : [],
+    })),
     explored: [[], []],
     log: ["Your people have reached the island. Chart a path to the beacons."],
   };
@@ -195,8 +216,11 @@ export function createGame(seed = 417, size = SIZE) {
       attacked: false,
     },
   ];
-  for (const u of s.units)
+  for (const u of s.units) {
     Object.assign(u, { xp: 0, rank: 0, promotion: null });
+    u.type = faction(s, u.owner).unit;
+    u.hp = UNITS[u.type].hp;
+  }
   reveal(s, 0);
   reveal(s, 1);
   return s;
@@ -219,8 +243,13 @@ function reveal(s, owner) {
     ...s.units.filter((u) => u.owner === owner).map((u) => s.tiles[u.tile]),
     ...s.tiles.filter((t) => t.city && t.owner === owner),
   ];
-  for (const c of centers)
-    for (const t of s.tiles) if (distance(c, t) <= 3) seen.add(t.id);
+  for (const c of centers) {
+    const scout = s.units.some(
+      (u) => u.owner === owner && u.tile === c.id && u.type === "scout",
+    );
+    const radius = 3 + Number(factionId(s, owner) === "canopy" && scout);
+    for (const t of s.tiles) if (distance(c, t) <= radius) seen.add(t.id);
+  }
   s.explored[owner] = [...seen].sort((a, b) => a - b);
 }
 export function tileIncome(s, t) {
@@ -228,7 +257,13 @@ export function tileIncome(s, t) {
   const market = t.city?.specialization === "market";
   if (t.city)
     return (
-      t.city.level + 2 + (market ? 2 + Number(has(s, t.owner, "commerce")) : 0)
+      t.city.level +
+      2 +
+      (market
+        ? 2 +
+          Number(has(s, t.owner, "commerce")) +
+          Number(has(s, t.owner, "granaries"))
+        : 0)
     );
   if (!t.improved) return 0;
   const bonus =
@@ -239,7 +274,11 @@ export function tileIncome(s, t) {
         n.city?.specialization === "market" &&
         !contested(s, n),
     );
-  return (BUILDINGS[t.building]?.income ?? 1) + Number(bonus);
+  return (
+    (BUILDINGS[t.building]?.income ?? 1) +
+    Number(bonus) +
+    Number(t.building === "farm2" && has(s, t.owner, "granaries"))
+  );
 }
 export const income = (s, owner) =>
   s.tiles.reduce(
@@ -278,6 +317,17 @@ export function reachable(s, u) {
     (t) => t !== u.tile && s.explored[u.owner].includes(t),
   );
 }
+export function healAmount(s, unit) {
+  const t = s.tiles[unit.tile];
+  return (
+    4 +
+    Number(
+      factionId(s, unit.owner) === "stone" &&
+        t.owner === unit.owner &&
+        !contested(s, t),
+    )
+  );
+}
 function protection(s, unit) {
   const t = s.tiles[unit.tile];
   return (
@@ -287,7 +337,14 @@ function protection(s, unit) {
     s.players[unit.owner].tech.includes("masonry")
       ? 1
       : 0) +
-    (t.city?.fortification === "walls" && t.owner === unit.owner ? 2 : 0)
+    (t.city?.fortification === "walls" && t.owner === unit.owner ? 2 : 0) +
+    Number(t.terrain === "forest" && has(s, unit.owner, "groveguard")) +
+    Number(
+      ["guardian", "sentinel"].includes(unit.type) &&
+        t.owner === unit.owner &&
+        !contested(s, t) &&
+        has(s, unit.owner, "shieldwall"),
+    )
   );
 }
 export function combatPreview(s, attacker, defender) {
@@ -341,7 +398,7 @@ function occupy(s, u) {
       t.occupation = { unit: u.id, owner: u.owner };
       log(
         s,
-        `${FACTIONS[u.owner]} is occupying ${t.city.name}. Survive the defender's turn to capture it.`,
+        `${factionName(s, u.owner)} is occupying ${t.city.name}. Survive the defender's turn to capture it.`,
       );
       return;
     }
@@ -350,14 +407,18 @@ function occupy(s, u) {
     u.xp = Math.min(1000, (u.xp ?? 0) + 2);
     log(
       s,
-      `${FACTIONS[u.owner]} claimed ${t.city?.name ?? "an ancient beacon"}.`,
+      `${factionName(s, u.owner)} claimed ${t.city?.name ?? "an ancient beacon"}.`,
     );
     if (
       t.city?.capital !== null &&
       t.city?.capital !== undefined &&
       t.city.capital !== u.owner
     )
-      finish(s, u.owner, `${FACTIONS[u.owner]} captured the rival capital.`);
+      finish(
+        s,
+        u.owner,
+        `${factionName(s, u.owner)} captured the rival capital.`,
+      );
   }
 }
 function cancelOccupations(s) {
@@ -377,12 +438,12 @@ function resolveOccupations(s, defender) {
     claim(s, t, u.owner);
     u.xp = Math.min(1000, (u.xp ?? 0) + 2);
     reveal(s, u.owner);
-    log(s, `${FACTIONS[u.owner]} secured ${t.city.name}.`);
+    log(s, `${factionName(s, u.owner)} secured ${t.city.name}.`);
     if (t.city.capital !== null && t.city.capital !== u.owner)
       finish(
         s,
         u.owner,
-        `${FACTIONS[u.owner]} captured the rival capital after surviving its counterattack.`,
+        `${factionName(s, u.owner)} captured the rival capital after surviving its counterattack.`,
       );
   }
 }
@@ -408,7 +469,7 @@ export function command(state, action) {
   if (!action || typeof action !== "object") return bad("Unknown command.");
   if (state.winner !== null)
     return bad("This expedition has ended. Start a new island.");
-  const s = state.version === 1 ? migrateSave(state) : clone(state),
+  const s = state.version < 3 ? migrateSave(state) : clone(state),
     p = s.players[s.active],
     u = s.units.find((v) => v.id === action.unit),
     t = s.tiles[action.tile];
@@ -434,8 +495,18 @@ export function command(state, action) {
     u.hp -= hit.retaliation;
     u.attacked = true;
     u.moved = true;
-    if (u.hp > 0) u.xp = Math.min(1000, (u.xp ?? 0) + (v.hp <= 0 ? 3 : 1));
-    if (v.hp > 0) v.xp = Math.min(1000, (v.xp ?? 0) + (u.hp <= 0 ? 3 : 1));
+    if (u.hp > 0)
+      u.xp = Math.min(
+        1000,
+        (u.xp ?? 0) +
+          (v.hp <= 0 ? 3 + Number(factionId(s, u.owner) === "ember") : 1),
+      );
+    if (v.hp > 0)
+      v.xp = Math.min(
+        1000,
+        (v.xp ?? 0) +
+          (u.hp <= 0 ? 3 + Number(factionId(s, v.owner) === "ember") : 1),
+      );
     log(
       s,
       `${UNITS[u.type].name} dealt ${hit.damage} damage; received ${hit.retaliation}.`,
@@ -447,7 +518,7 @@ export function command(state, action) {
       return bad("An occupying unit cannot rest.");
     if (u.moved || u.attacked || u.hp >= unitStats(s, u).hp)
       return bad("Only wounded, unspent units can rest.");
-    u.hp = Math.min(unitStats(s, u).hp, u.hp + 4);
+    u.hp = Math.min(unitStats(s, u).hp, u.hp + healAmount(s, u));
     u.moved = true;
     u.attacked = true;
     log(s, `${UNITS[u.type].name} rested and recovered health.`);
@@ -479,7 +550,10 @@ export function command(state, action) {
       promotion: null,
     });
     reveal(s, s.active);
-    log(s, `${FACTIONS[s.active]} recruited a ${def.name.toLowerCase()}.`);
+    log(
+      s,
+      `${factionName(s, s.active)} recruited a ${def.name.toLowerCase()}.`,
+    );
   } else if (
     ["improve", "upgrade", "specialize", "road"].includes(action.type)
   ) {
@@ -506,7 +580,7 @@ export function command(state, action) {
         "A road connects your realm. Friendly road steps cost half movement.",
       );
     } else {
-      p.stars -= BUILDINGS[kind].cost;
+      p.stars -= buildingCost(s, kind);
       t.improved = true;
       t.building = kind;
       log(
@@ -520,7 +594,7 @@ export function command(state, action) {
     if (reason) return bad(reason);
     p.stars -= tech.cost;
     p.tech.push(action.tech);
-    log(s, `${FACTIONS[s.active]} learned ${tech.name}.`);
+    log(s, `${factionName(s, s.active)} learned ${tech.name}.`);
   } else if (action.type === "end") {
     // Resolve only after the original owner has had an entire response turn.
     // On the final round these completions precede the score; fresh occupations do not count.
@@ -538,7 +612,7 @@ export function command(state, action) {
         finish(
           s,
           winner,
-          `${FACTIONS[winner]} united the beacons with ${s.players[winner].renown} renown.`,
+          `${factionName(s, winner)} united the beacons with ${s.players[winner].renown} renown.`,
         );
         return { state: s, error: null };
       }
@@ -564,7 +638,7 @@ export function command(state, action) {
           winner,
           winner < 0
             ? "The island is shared. The expedition ends in a draw."
-            : `${FACTIONS[winner]} prevailed after ${roundLimit(s)} rounds.`,
+            : `${factionName(s, winner)} prevailed after ${roundLimit(s)} rounds.`,
         );
         return { state: s, error: null };
       }
@@ -663,6 +737,13 @@ export function aiTurn(state, owner = 1) {
   }
   // Reserve five stars for defense, buy one technology per turn, then develop.
   for (const tech of [
+    ...(faction(s, owner).doctrine ? [faction(s, owner).doctrine] : []),
+    ...({
+      canopy: ["archery", "training"],
+      ember: ["training", "tactics"],
+      stone: ["engineering"],
+      tide: ["irrigation", "commerce"],
+    }[factionId(s, owner)] ?? []),
     "agriculture",
     "archery",
     "masonry",
@@ -732,11 +813,15 @@ export function aiTurn(state, owner = 1) {
         kind:
           city.city.fortification === "workshop" && has(s, owner, "engineering")
             ? "sentinel"
-            : s.players[owner].tech.includes("archery") && s.round % 3 === 0
+            : factionId(s, owner) === "ember"
               ? "archer"
-              : s.round % 2
-                ? "scout"
-                : "guardian",
+              : factionId(s, owner) === "stone"
+                ? "guardian"
+                : s.players[owner].tech.includes("archery") && s.round % 3 === 0
+                  ? "archer"
+                  : s.round % 2
+                    ? "scout"
+                    : "guardian",
       });
   if (s.players[owner].stars >= 9) {
     const t = orderedTiles.find(
@@ -778,7 +863,7 @@ export function validateSave(s) {
   const int = (n, a, b) => Number.isInteger(n) && n >= a && n <= b;
   if (
     !s ||
-    ![1, 2].includes(s.version) ||
+    ![1, 2, 3].includes(s.version) ||
     !MAP_SIZES.includes(mapSize(s)) ||
     !int(s.seed, 0, 4294967295) ||
     !int(s.round, 1, roundLimit(s)) ||
@@ -801,6 +886,24 @@ export function validateSave(s) {
         new Set(p.tech).size === p.tech.length &&
         p.tech.every((t) => Object.hasOwn(TECHS, t)),
     )
+  )
+    return false;
+  if (
+    s.version === 3 &&
+    s.players.some(
+      (p) =>
+        !Object.hasOwn(FACTION_TYPES, p.faction) ||
+        (FACTION_TYPES[p.faction].tech &&
+          !p.tech.includes(FACTION_TYPES[p.faction].tech)) ||
+        p.tech.some(
+          (key) => TECHS[key].faction && TECHS[key].faction !== p.faction,
+        ),
+    )
+  )
+    return false;
+  if (
+    s.version < 3 &&
+    s.players.some((p) => p.tech.some((key) => TECHS[key].faction))
   )
     return false;
   if (
@@ -844,7 +947,7 @@ export function validateSave(s) {
     new Set(s.units.map((u) => u.tile)).size !== s.units.length
   )
     return false;
-  if (s.version === 2) {
+  if (s.version >= 2) {
     if (
       s.players.some((p) =>
         p.tech.some(
