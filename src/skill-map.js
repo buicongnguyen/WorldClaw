@@ -3,6 +3,7 @@ import {
   prerequisites,
   researchReason,
   researchCost,
+  insightSpent,
 } from "./progression.js";
 import { factionId } from "./factions.js";
 export function skillMap(s) {
@@ -33,7 +34,7 @@ export function skillMap(s) {
               prerequisites(key)
                 .map((k) => `<a href="#skill-${k}">${TECHS[k].name}</a>`)
                 .join(" + ") || "Foundation"
-            } →</small><h3>${def.name}</h3><p>${def.description}</p><small class="action-reason">${reason || "Available to learn"}${researchCost(s, key, 0) < def.cost ? " · Native climate discount" : ""}</small></div><button data-tech="${key}" ${reason || s.active !== 0 || s.winner !== null ? "disabled" : ""}>${learned ? "Learned" : `✦ ${researchCost(s, key, 0)}`}</button></article>`;
+            } →</small><h3>${def.name}</h3><p>${def.description}</p><small class="action-reason">${reason || "Available to learn"}${researchCost(s, key, 0) + insightSpent(s, key, 0) < def.cost ? " · Native climate discount" : ""}${!learned && insightSpent(s, key, 0) ? ` · Spends ${insightSpent(s, key, 0)} insight` : ""}</small></div><button data-tech="${key}" ${reason || s.active !== 0 || s.winner !== null ? "disabled" : ""}>${learned ? "Learned" : `✦ ${researchCost(s, key, 0)}`}</button></article>`;
           })
           .join("")}</div></section>`,
     )

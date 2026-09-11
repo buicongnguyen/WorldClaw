@@ -12,11 +12,23 @@ import {
   buildingCost,
   prerequisites,
   researchCost,
+  insightSpent,
   nextBuilding,
 } from "./progression.js";
 import { climateAt } from "./climate.js";
 import { LIVERIES } from "./appearance.js";
 import { FACTION_TYPES, faction, factionId, factionName } from "./factions.js";
+import {
+  createChronicle,
+  validateChronicle,
+  beaconActive,
+  siteAt,
+  investigationReason,
+  restorationReason,
+  councilReason,
+  COUNCIL,
+  DISCOVERIES,
+} from "./chronicle.js";
 export {
   TECHS,
   BUILDINGS,
@@ -27,6 +39,7 @@ export {
   buildingCost,
   prerequisites,
   researchCost,
+  insightSpent,
   nextBuilding,
 } from "./progression.js";
 export const SIZE = 11;
@@ -139,7 +152,7 @@ export const UNITS = {
     requires: ["navalgunnery"],
     domain: "water",
     equipment:
-      "Four deck guns. Fire or move, not both; after acting, cannot retaliate until your next turn.",
+      "Four deck guns. Fire or move, not both. Spent guns cannot retaliate; Guard preserves defensive fire for a ready crew.",
   },
   cutter: {
     name: "Fast cutter",
@@ -396,6 +409,7 @@ export function createGame(
     }
   reveal(s, 0);
   reveal(s, 1);
+  if (options.chronicle === true) s.chronicle = createChronicle(s);
   return s;
 }
 function claim(s, tile, owner) {
@@ -583,6 +597,7 @@ function protection(s, unit, attacker) {
   const t = s.tiles[unit.tile];
   return (
     (t.terrain === "forest" ? 1 : 0) +
+    Number(unit.guarded === true) +
     Number(
       attacker &&
         UNITS[attacker.type].range === 1 &&
@@ -650,7 +665,7 @@ export function combatPreview(s, attacker, defender) {
   const remaining = Math.max(0, defender.hp - damage);
   const retaliation =
     remaining > 0 &&
-    !(defender.type === "gunship" && defender.moved) &&
+    !(defender.type === "gunship" && defender.moved && !defender.guarded) &&
     distance(s.tiles[attacker.tile], s.tiles[defender.tile]) <=
       unitStats(s, defender).range
       ? Math.max(
@@ -795,11 +810,71 @@ export function command(state, action) {
     u = s.units.find((v) => v.id === action.unit),
     t = s.tiles[action.tile];
   if (
-    ["move", "attack", "heal", "promote"].includes(action.type) &&
+    [
+      "move",
+      "attack",
+      "heal",
+      "promote",
+      "guard",
+      "investigate",
+      "restore",
+    ].includes(action.type) &&
     (!u || u.owner !== s.active)
   )
     return bad("Select one of your units.");
-  if (action.type === "livery") {
+  if (action.type === "guard") {
+    if (u.moved || u.attacked) return bad("Guard requires an unused turn.");
+    u.guarded = true;
+    u.moved = u.attacked = true;
+    log(
+      s,
+      `${UNITS[u.type].name} is guarding: +1 protection until its next turn.`,
+    );
+  } else if (action.type === "investigate") {
+    const reason = investigationReason(s, u, action.choice);
+    if (reason) return bad(reason);
+    const site = siteAt(s, u.tile),
+      reward = DISCOVERIES[action.choice],
+      progress = s.chronicle.players[s.active];
+    site.owner = s.active;
+    site.choice = action.choice;
+    progress.fragments++;
+    progress.insight += reward.insight;
+    p.stars += reward.stars;
+    u.moved = u.attacked = true;
+    u.xp = Math.min(1000, u.xp + 1);
+    if (action.choice === "charts") {
+      const seen = new Set(s.explored[s.active]);
+      for (const tile of s.tiles)
+        if (distance(tile, s.tiles[u.tile]) <= 4) seen.add(tile.id);
+      s.explored[s.active] = [...seen];
+    }
+    log(
+      s,
+      `${factionName(s, s.active)} recovered a ${site.kind}: ${reward.name}. +1 Meridian fragment.`,
+    );
+  } else if (action.type === "restore") {
+    const reason = restorationReason(s, u);
+    if (reason) return bad(reason);
+    s.chronicle.players[s.active].fragments--;
+    p.stars -= 4;
+    s.chronicle.restored.push({ tile: u.tile, owner: s.active });
+    u.moved = u.attacked = true;
+    u.xp = Math.min(1000, u.xp + 2);
+    log(
+      s,
+      `${factionName(s, s.active)} restored a Meridian beacon. Its current owner now earns renown each full round.`,
+    );
+  } else if (action.type === "council") {
+    const reason = councilReason(s, action.choice);
+    if (reason) return bad(reason);
+    const reward = COUNCIL[action.choice];
+    s.chronicle.players[s.active].choices.push(action.choice);
+    s.chronicle.players[s.active].insight += reward.insight;
+    p.stars += reward.stars;
+    p.renown += reward.renown;
+    log(s, `${factionName(s, s.active)} council: ${reward.name}.`);
+  } else if (action.type === "livery") {
     if (!LIVERIES.includes(action.livery))
       return bad("Unknown cosmetic style.");
     p.livery = action.livery;
@@ -917,7 +992,9 @@ export function command(state, action) {
     const tech = Object.hasOwn(TECHS, action.tech) ? TECHS[action.tech] : null;
     const reason = researchReason(s, action.tech);
     if (reason) return bad(reason);
+    const spentInsight = insightSpent(s, action.tech);
     p.stars -= researchCost(s, action.tech);
+    if (s.chronicle) s.chronicle.players[s.active].insight -= spentInsight;
     p.tech.push(action.tech);
     log(s, `${factionName(s, s.active)} learned ${tech.name}.`);
   } else if (action.type === "end") {
@@ -929,7 +1006,7 @@ export function command(state, action) {
       // Score beacons together after both factions act, avoiding a half-turn victory race.
       for (const owner of [0, 1])
         s.players[owner].renown += s.tiles.filter(
-          (t) => t.beacon && t.owner === owner,
+          (t) => t.beacon && t.owner === owner && beaconActive(s, t),
         ).length;
       const [a, b] = s.players.map((p) => p.renown);
       if (Math.max(a, b) >= renownGoal(s) && a !== b) {
@@ -975,6 +1052,7 @@ export function command(state, action) {
     for (const unit of s.units.filter((v) => v.owner === s.active)) {
       unit.moved = false;
       unit.attacked = false;
+      delete unit.guarded;
     }
     reveal(s, s.active);
   } else return bad("Unknown command.");
@@ -991,6 +1069,18 @@ export function aiTurn(state, owner = 1) {
     if (!u) continue;
     // Hold an occupation instead of walking away from its pending capture.
     if (s.tiles[u.tile].occupation?.unit === id) continue;
+    if (!investigationReason(s, u, "records")) {
+      act({
+        type: "investigate",
+        unit: id,
+        choice: s.players[owner].stars < 10 ? "supplies" : "records",
+      });
+      continue;
+    }
+    if (!restorationReason(s, u)) {
+      act({ type: "restore", unit: id });
+      continue;
+    }
     if (!promotionReason(s, u, u.promotion ?? "resilience")) {
       act({ type: "promote", unit: id, choice: u.promotion ?? "resilience" });
       continue;
@@ -1032,7 +1122,12 @@ export function aiTurn(state, owner = 1) {
         (t) =>
           known.has(t.id) &&
           (t.city || t.beacon) &&
-          (t.owner !== owner || t.occupation),
+          (t.owner !== owner ||
+            t.occupation ||
+            (s.chronicle &&
+              t.beacon &&
+              !beaconActive(s, t) &&
+              s.chronicle.players[owner].fragments > 0)),
       );
       const capital = s.tiles.find((t) => t.city?.capital === owner);
       const threats = s.units.filter(
@@ -1057,6 +1152,25 @@ export function aiTurn(state, owner = 1) {
               (v) => distance(t, s.tiles[v.tile]) <= unitStats(s, u).range,
             ),
         );
+      }
+      if (
+        s.chronicle &&
+        !(capital.owner === owner && threats.length && u.type !== "scout")
+      ) {
+        const discoveries = s.chronicle.sites
+          .filter(
+            (v) =>
+              v.owner === null &&
+              known.has(v.tile) &&
+              canTraverse(s, s.tiles[v.tile], owner, u),
+          )
+          .map((v) => s.tiles[v.tile]);
+        if (
+          discoveries.length &&
+          (s.chronicle.players[owner].fragments === 0 ||
+            UNITS[u.type].domain === "water")
+        )
+          goals = discoveries;
       }
       const frontier = s.tiles.filter(
         (t) =>
@@ -1107,18 +1221,33 @@ export function aiTurn(state, owner = 1) {
           (distances.get(a) ?? 999) - (distances.get(b) ?? 999) ||
           (owner === 0 ? a - b : b - a),
       );
-      if (options.length) act({ type: "move", unit: id, tile: options[0] });
+      const standing = s.tiles[u.tile];
+      if (
+        standing.beacon &&
+        standing.owner === owner &&
+        beaconActive(s, standing) &&
+        !threats.length &&
+        !goals.some((g) => g.owner !== owner) &&
+        !training.length
+      ) {
+        act({ type: "guard", unit: id });
+      } else if (options.length)
+        act({ type: "move", unit: id, tile: options[0] });
       if (s.winner !== null) return s;
       u = s.units.find((v) => v.id === id);
       enemies = targets(s, u).sort((a, b) => a.hp - b.hp);
     }
     if (enemies.length)
       act({ type: "attack", unit: id, target: enemies[0].id });
+    else if (!u.moved && !u.attacked) act({ type: "guard", unit: id });
   }
+  for (const choice of Object.keys(COUNCIL))
+    if (!councilReason(s, choice)) act({ type: "council", choice });
   // Reserve five stars for defense, buy one technology per turn, then develop.
   for (const tech of [
     "trails",
     "agriculture",
+    ...(s.chronicle ? ["masonry", ...(s.round >= 4 ? ["sailing"] : [])] : []),
     ...(s.round >= 7 ? ["riding"] : []),
     ...(s.round >= 9 &&
     s.tiles.some((t) => t.city && t.owner === owner && launchTile(s, t, owner))
@@ -1246,7 +1375,7 @@ export function aiTurn(state, owner = 1) {
         ...(hasEnemyMount && !army.some((u) => u.type === "spearman")
           ? ["spearman"]
           : []),
-        ...(s.round >= 9 &&
+        ...((s.round >= 9 || (s.chronicle && s.round >= 5)) &&
         army.length >= 3 &&
         army.filter((u) => UNITS[u.type].domain === "water").length < 2
           ? ["gunship", s.round % 2 ? "ship" : "cutter", "boat"]
@@ -1377,7 +1506,9 @@ export function validateSave(s) {
           (s.version === 3 && u.escort === true && u.type === "scout")) &&
         int(u.hp, 1, s.version === 1 ? UNITS[u.type].hp : unitStats(s, u).hp) &&
         typeof u.moved === "boolean" &&
-        typeof u.attacked === "boolean",
+        typeof u.attacked === "boolean" &&
+        (u.guarded === undefined ||
+          (s.version === 3 && u.guarded === true && u.moved && u.attacked)),
     ) ||
     new Set(s.units.map((u) => u.id)).size !== s.units.length ||
     new Set(s.units.map((u) => u.tile)).size !== s.units.length
@@ -1471,6 +1602,7 @@ export function validateSave(s) {
   )
     return false;
   return (
+    validateChronicle(s) &&
     Array.isArray(s.explored) &&
     s.explored.length === 2 &&
     s.explored.every(

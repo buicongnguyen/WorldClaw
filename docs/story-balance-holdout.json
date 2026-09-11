@@ -1,0 +1,57 @@
+{
+  "seeds": [
+    7,
+    53,
+    999
+  ],
+  "reports": {
+    "skirmish": {
+      "matches": 432,
+      "rounds": 4542,
+      "techs": 7978,
+      "navalMatches": 141,
+      "discoveries": 0,
+      "restorations": 0,
+      "chapters": 0,
+      "wins": {
+        "desert": 54,
+        "ice": 46,
+        "fire": 52,
+        "water": 36,
+        "mountain": 45,
+        "canopy": 76,
+        "ember": 30,
+        "stone": 46,
+        "tide": 47
+      },
+      "draws": 0,
+      "meanRounds": 10.51,
+      "meanTechsPerPlayer": 9.23,
+      "navalMatchPercent": 32.6
+    },
+    "story": {
+      "matches": 432,
+      "rounds": 7246,
+      "techs": 12484,
+      "navalMatches": 378,
+      "discoveries": 2086,
+      "restorations": 1182,
+      "chapters": 2082,
+      "wins": {
+        "desert": 56,
+        "ice": 42,
+        "fire": 33,
+        "water": 57,
+        "mountain": 45,
+        "canopy": 62,
+        "ember": 31,
+        "stone": 39,
+        "tide": 67
+      },
+      "draws": 0,
+      "meanRounds": 16.77,
+      "meanTechsPerPlayer": 14.45,
+      "navalMatchPercent": 87.5
+    }
+  }
+}

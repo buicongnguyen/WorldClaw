@@ -38,6 +38,21 @@ import { climateAt } from "./climate.js";
 import { skillMap } from "./skill-map.js";
 import { UNIT_ROLES, LIVERIES, appearanceFor } from "./appearance.js";
 import { createWorld } from "./world.js";
+import {
+  STORY_TITLE,
+  PROLOGUE,
+  TRIBE_STORIES,
+  DISCOVERIES,
+  COUNCIL,
+  CHAPTERS,
+  siteAt,
+  beaconActive,
+  investigationReason,
+  restorationReason,
+  councilReason,
+  councilProgress,
+  epilogue,
+} from "./chronicle.js";
 
 const SAVE_KEY = "crown-canopy-v1";
 const escape = (value) =>
@@ -52,6 +67,7 @@ let saveNotice = "",
   state = createGame(417, 17, ["canopy", "ember"], {
     climates: true,
     balancedStart: true,
+    chronicle: true,
   }),
   selectedTile = state.units[0].tile,
   selectedUnit = 1,
@@ -106,6 +122,10 @@ const $ = (selector) => document.querySelector(selector);
 $(".realm-card").insertAdjacentHTML(
   "beforeend",
   '<button id="armory" class="outline armory-button">Army & styles</button>',
+);
+$(".objective").insertAdjacentHTML(
+  "beforebegin",
+  '<section class="chronicle-card"><div class="eyebrow">THE BROKEN MERIDIAN</div><p id="story-summary"></p><div id="story-resources"></div><button class="outline" id="council">Story & council</button></section>',
 );
 let world;
 try {
@@ -193,7 +213,21 @@ function gatedButton(label, action, reason) {
 function render() {
   const p = state.players[0];
   $(".objective > p").innerHTML =
-    `Hold beacons to earn ${renownGoal(state)} renown.<br>Or capture the rival capital.`;
+    `${state.chronicle ? "Restore and hold" : "Hold"} beacons to earn ${renownGoal(state)} renown.<br>Or capture the rival capital.`;
+  $(".map-heading h1").textContent = state.chronicle
+    ? "A dawn to restore."
+    : "An island to claim.";
+  $(".map-heading p").textContent = state.chronicle
+    ? "Recover. Restore. Decide."
+    : "Explore. Establish. Endure.";
+  const chapter = state.chronicle?.players[0];
+  $("#story-summary").textContent = chapter
+    ? (CHAPTERS[chapter.choices.length] ??
+      "The covenant is written. Carry it into the world.")
+    : "Skirmish rules. Start a new Broken Meridian expedition for discoveries and council choices.";
+  $("#story-resources").textContent = chapter
+    ? `◇ ${chapter.fragments} fragment${chapter.fragments === 1 ? "" : "s"} · ✧ ${chapter.insight} insight · ${chapter.choices.length}/3 chapters`
+    : "";
   const identity = faction(state, 0),
     rival = faction(state, 1);
   $(".realm-card h2").textContent =
@@ -254,6 +288,28 @@ function render() {
   let html = `<div class="eyebrow">${u ? "COMMAND YOUR PEOPLE" : "EXPLORE THE ISLAND"}<span>${known ? `${t.x + 1} · ${t.z + 1}` : ""}</span></div>`;
   if (u) {
     html += `<h3>♙ ${UNITS[u.type].name} <span class="health">${u.hp}/${unitStats(state, u).hp} HP</span></h3><p class="unit-status">${u.attacked ? "Actions spent · ready next turn" : u.moved ? "Moved · can still attack" : "Ready to move and attack"}</p><p class="unit-status">Attack ${unitStats(state, u).attack} · Range ${unitStats(state, u).range} · Movement ${unitStats(state, u).move}</p>`;
+    if (u.guarded)
+      html +=
+        '<p class="combat-preview">Guarding · +1 protection until your next turn.</p>';
+    if (state.chronicle && u.tile === t?.id) {
+      const site = siteAt(state, u.tile);
+      if (site?.owner === null) {
+        html +=
+          '<p class="combat-preview">Recover this site once. Each choice gives a fragment and 1 XP, and consumes this unit’s turn.</p>';
+        for (const [key, d] of Object.entries(DISCOVERIES))
+          html += gatedButton(
+            `${d.name}<small>${d.detail}</small>`,
+            { type: "investigate", unit: u.id, choice: key },
+            investigationReason(state, u, key),
+          );
+      }
+      if (t.beacon && !beaconActive(state, t))
+        html += gatedButton(
+          "Restore beacon<small>4 stars + 1 fragment · Masonry · +2 XP · consumes turn</small>",
+          { type: "restore", unit: u.id },
+          restorationReason(state, u),
+        );
+    }
     if (known && reachable(state, u).includes(t.id))
       html += actionButton(
         `Move to ${terrainName[t.terrain]} →`,
@@ -286,6 +342,12 @@ function render() {
         { type: "heal", unit: u.id },
         busy,
       );
+    if (!u.moved && !u.attacked)
+      html += actionButton(
+        "Guard · +1 protection until next turn",
+        { type: "guard", unit: u.id },
+        busy,
+      );
     html +=
       '<p class="selection-tip">Select a mint outline to move. Select a rival to preview combat.</p>';
     html += `<p class="unit-status">${UNITS[u.type].equipment}</p><p class="selection-tip">${appearanceFor(state, u).style} livery · Cosmetic only</p>`;
@@ -304,6 +366,11 @@ function render() {
         );
   }
   if (known) {
+    const discovery = siteAt(state, t.id);
+    if (discovery)
+      html += `<p class="combat-preview">${discovery.kind === "wreck" ? "The Drowned Passage" : "The Lost Archive"} · ${discovery.owner === null ? "Unrecovered. Stand here with an unused unit to investigate." : `Recovered by ${factionName(state, discovery.owner)}. No further rewards.`}</p>`;
+    if (state.chronicle && t.beacon)
+      html += `<p class="combat-preview">${beaconActive(state, t) ? "Restored · the current owner earns renown at the full-round checkpoint." : "Dormant · no renown until restored. Requires a fragment, Masonry and 4 stars."}</p>`;
     html += `<p class="selection-tip">Climate: ${climateAt(state, t)}</p>`;
     html += `<div class="tile-info"><strong>${escape(t.city?.name ?? (t.beacon ? "Ancient beacon" : terrainName[t.terrain]))}</strong><small>${t.owner === null ? "Unclaimed" : factionName(state, t.owner)}${t.city ? ` · Level ${t.city.level}` : t.improved ? ` · ${BUILDINGS[t.building].name}` : ""}</small></div>`;
     if (t.occupation)
@@ -352,7 +419,7 @@ function render() {
   html += `<label class="tile-picker">Tile navigator<select id="tile-picker" aria-label="Select a charted tile" ${busy || state.winner !== null ? "disabled" : ""}>${state.explored[0]
     .map((id) => {
       const tile = state.tiles[id];
-      return `<option value="${id}" ${id === selectedTile ? "selected" : ""}>${tile.x + 1},${tile.z + 1} — ${escape(tile.city?.name ?? (tile.beacon ? "Beacon" : terrainName[tile.terrain]))}${unitAt(state, id) ? " · Unit" : ""}</option>`;
+      return `<option value="${id}" ${id === selectedTile ? "selected" : ""}>${tile.x + 1},${tile.z + 1} — ${escape(tile.city?.name ?? (tile.beacon ? "Beacon" : (siteAt(state, id)?.kind ?? terrainName[tile.terrain])))}${unitAt(state, id) ? " · Unit" : ""}</option>`;
     })
     .join("")}</select></label>`;
   $("#inspector").innerHTML = html;
@@ -381,6 +448,70 @@ function showResearch() {
       (b.onclick = () => {
         act({ type: "research", tech: b.dataset.tech });
         showResearch();
+      }),
+  );
+}
+function showCouncil() {
+  const c = state.chronicle,
+    progress = councilProgress(state, 0),
+    known = new Set(state.explored[0]);
+  const journal = (c?.sites ?? []).filter((site) => known.has(site.tile));
+  const rewardText = (d) =>
+    [
+      d.stars ? `${d.stars} stars` : "",
+      d.insight ? `${d.insight} insight` : "",
+      d.renown ? `${d.renown} renown` : "",
+    ]
+      .filter(Boolean)
+      .join(" + ");
+  modal(`<span class="eyebrow">A CHRONICLE OF THE VERDANT REACH</span><h2>${STORY_TITLE}</h2><p>${PROLOGUE}</p><blockquote class="story-quote">${TRIBE_STORIES[factionId(state, 0)]}</blockquote>
+    <p><b>Mara Venn, archivist:</b> “Read the agreements before you wake the machine.”<br><b>Captain Ilyan, quartermaster:</b> “And keep our people fed while we learn.”</p>
+    ${
+      !c
+        ? '<p class="combat-preview">This save uses skirmish rules. Start a new island with Broken Meridian story mode enabled to play these chapters.</p>'
+        : `
+    <p class="story-ledger">◇ ${c.players[0].fragments} fragment${c.players[0].fragments === 1 ? "" : "s"} · ✧ ${c.players[0].insight} research insight</p>
+    <p class="selection-tip">Recover sites with an unused unit. Wreck salvage requires Sailing for every tribe. Restore owned beacons for 4 stars + 1 fragment after Masonry. Only restored beacons score. Insight discounts each research purchase by up to 4 stars, never below 1.</p>
+    <p class="selection-tip">Your realm: improved tiles ${progress.improved} · cities ${progress.cities} (developed ${progress.developed}) · recoveries ${progress.sites} (wrecks ${progress.wrecks}) · naval units ${progress.navy} · restored beacons held ${progress.beacons}.</p>
+    ${CHAPTERS.map(
+      (title, i) =>
+        `<section class="council-chapter"><h3>${title}</h3><div class="council-options">${Object.entries(
+          COUNCIL,
+        )
+          .filter(([, d]) => d.chapter === i)
+          .map(([key, d]) => {
+            const chosen = c.players[0].choices[i] === key,
+              reason = councilReason(state, key, 0);
+            return `<article class="council-option ${chosen ? "chosen" : ""}"><h4>${d.name}</h4><p>${d.text}</p><small>${d.requirement}<br>Reward: ${rewardText(d)}</small><button class="outline" data-council="${key}" ${reason || busy || state.active !== 0 || state.winner !== null ? "disabled" : ""}>${chosen ? "Chosen" : reason ? "Not available" : "Resolve chapter"}</button><small>${chosen ? d.ending : reason}</small></article>`;
+          })
+          .join("")}</div></section>`,
+    ).join("")}
+    <h3>Discovery journal</h3><p class="selection-tip">Only charted sites are listed. Both expeditions compete for each site's one-time recovery.</p><div class="discovery-journal">${
+      journal.length
+        ? journal
+            .map((site) => {
+              const t = state.tiles[site.tile];
+              return `<article><b>${site.kind === "wreck" ? "The Drowned Passage" : "The Lost Archive"} · ${t.x + 1},${t.z + 1}</b><p>${site.owner === null ? "Unrecovered. Your crew can investigate when standing here with an unused turn." : `${factionName(state, site.owner)} · ${DISCOVERIES[site.choice].name}. ${DISCOVERIES[site.choice].text}`}</p><button class="outline" data-site="${site.tile}" ${busy || state.active !== 0 || state.winner !== null ? "disabled" : ""}>Locate site</button></article>`;
+            })
+            .join("")
+        : "<p>Explore beyond the capital to find the first archive.</p>"
+    }</div>`
+    }
+    <details class="tribe-review"><summary>The assets behind the story</summary><img class="armory-sheet" src="${import.meta.env.BASE_URL}art/chronicle-sites.png" alt="Blender archive, recoverable wreck and dormant Meridian beacon" loading="lazy"><p>Original editable Blender meshes. Dormant beacons visibly change when restored.</p></details>
+    <details class="tribe-review"><summary>Expedition event log</summary><ol class="event-log">${state.log.map((line) => `<li>${escape(line)}</li>`).join("")}</ol></details>`);
+  document.querySelectorAll("[data-council]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        act({ type: "council", choice: button.dataset.council });
+        showCouncil();
+      }),
+  );
+  document.querySelectorAll("[data-site]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        $("#dialog").close();
+        pick(Number(button.dataset.site));
+        world?.focus();
       }),
   );
 }
@@ -420,6 +551,12 @@ function showHelp() {
   const limitNote = document.createElement("p");
   limitNote.textContent = limitDescription;
   $("#dialog-content").appendChild(limitNote);
+  const beaconHelp = $(".help-list").children[3];
+  beaconHelp.innerHTML = `<b>${state.chronicle ? "Restore" : "Claim"} the beacons.</b> ${state.chronicle ? "Recover a fragment at an archive or wreck (wreck salvage requires Sailing). An unused unit on an owned dormant beacon can restore it with Masonry, 4 stars and 1 fragment. Only restored beacons score. " : ""}Each owned ${state.chronicle ? "restored " : ""}beacon grants 1 renown after both factions finish the round. Reach ${renownGoal(state)} and lead to win; ties continue. Capital occupation can also win. At ${roundLimit(state)} rounds, renown, city count and surviving HP decide the result.`;
+  $(".help-list").insertAdjacentHTML(
+    "beforeend",
+    "<li><b>Prepare a defense.</b> Guard consumes a fully unused turn for +1 protection until your next turn. It cannot stack or follow another action. A ready gunship can Guard to preserve defensive fire.</li>",
+  );
 }
 function showNewGame() {
   modal(
@@ -443,6 +580,11 @@ function showNewGame() {
   climateChoice.innerHTML =
     '<input id="climate-regions" type="checkbox" checked> Desert and ice regions (capital approaches stay temperate)';
   $("#start-new").before(climateChoice);
+  const storyChoice = document.createElement("label");
+  storyChoice.className = "climate-choice";
+  storyChoice.innerHTML =
+    '<input id="story-mode" type="checkbox" checked> The Broken Meridian · story chapters, recoverable sites and dormant beacons';
+  $("#start-new").before(storyChoice);
   $("#start-new").onclick = () => {
     const n = Number($("#seed").value);
     if (!Number.isInteger(n) || n < 0 || n > 4294967295) {
@@ -454,7 +596,11 @@ function showNewGame() {
       n,
       Number($("#map-size").value),
       [$("input[name=faction]:checked").value, $("#rival-faction").value],
-      { climates: $("#climate-regions").checked, balancedStart: true },
+      {
+        climates: $("#climate-regions").checked,
+        balancedStart: true,
+        chronicle: $("#story-mode").checked,
+      },
     );
     selectedUnit = 1;
     selectedTile = state.units[0].tile;
@@ -463,13 +609,22 @@ function showNewGame() {
     render();
     world?.resetCamera();
     $("#dialog").close();
-    notify("A fresh island. A new beginning.");
+    notify(
+      state.chronicle
+        ? "The Night of Glass is over. Recover an archive; carry the dawn. Open Story & council for your first chapter."
+        : "A fresh island. A new beginning.",
+    );
   };
 }
 function showResult() {
   modal(
     `<span class="eyebrow">EXPEDITION COMPLETE</span><h2>${state.winner === -1 ? "A shared horizon." : factionId(state, state.winner) !== "classic" ? `${factionName(state, state.winner)} triumphs.` : state.winner === 0 ? "The canopy endures." : "Embers take the crown."}</h2><p>${escape(state.reason)}</p><div class="result-score"><b>${state.players[0].renown}<small>YOUR RENOWN</small></b><span>◇</span><b>${state.players[1].renown}<small>RIVAL RENOWN</small></b></div><button class="primary action" id="again">Explore another island →</button>`,
   );
+  if (state.chronicle)
+    $("#again").insertAdjacentHTML(
+      "beforebegin",
+      `<p class="story-ending">${escape(epilogue(state))}</p>`,
+    );
   $("#again").onclick = showNewGame;
 }
 async function runAI() {
@@ -507,6 +662,7 @@ $("#end-turn").onclick = endTurn;
 $("#next-unit").onclick = nextUnit;
 $("#research").onclick = showResearch;
 $("#armory").onclick = showArmory;
+$("#council").onclick = showCouncil;
 $("#help").onclick = showHelp;
 $("#new-game").onclick = showNewGame;
 $("#zoom-in").onclick = () => world?.zoom(1.18);

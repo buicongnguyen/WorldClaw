@@ -5,6 +5,7 @@ import { loadArt, rebuildBatches } from "./art.js";
 import { armyColor } from "./factions.js";
 import { climateAt } from "./climate.js";
 import { BUILDINGS } from "./progression.js";
+import { siteAt, beaconActive } from "./chronicle.js";
 import { SIZE, mapSize, UNITS, reachable, targets } from "./game.js";
 
 const colors = {
@@ -268,6 +269,40 @@ export function createWorld(host, onPick) {
           ).scale.set(1.8, 0.45, 1.2);
         continue;
       }
+      const site = siteAt(s, t.id);
+      if (site && !t.improved) {
+        const model =
+          site.kind === "wreck" ? "meridian_wreck" : "meridian_archive";
+        const vesselPresent =
+          site.kind === "wreck" && s.units.some((u) => u.tile === t.id);
+        if (art) {
+          const object = art.add(
+            g,
+            model,
+            vesselPresent ? -0.29 : site.owner === null ? 0 : 0.25,
+            t.terrain === "water" ? -0.05 : 0.32,
+            vesselPresent ? 0.27 : 0,
+            vesselPresent ? 0.4 : site.owner === null ? 0.85 : 0.32,
+          );
+          object.name = `Discovery_${t.id}_${site.owner === null ? "unrecovered" : "recovered"}`;
+        } else
+          mesh(
+            g,
+            "Box",
+            [0.4, 0.3, 0.4],
+            site.owner === null ? 0xe7be6b : 0x63716b,
+            0,
+            t.terrain === "water" ? 0.12 : 0.49,
+            0,
+          );
+        addLabel(
+          `${site.owner === null ? "◇" : "✓"} ${site.kind.toUpperCase()}`,
+          t.x - center,
+          site.kind === "wreck" ? 0.6 : 1.3,
+          t.z - center,
+          "discovery-label",
+        );
+      }
       if (t.terrain === "water") {
         if (t.id % 3 === 0)
           mesh(g, "Box", [0.33, 0.012, 0.025], 0x65a3a6, -0.06, -0.055, 0.12);
@@ -463,8 +498,22 @@ export function createWorld(host, onPick) {
         );
       }
       if (t.beacon && art) {
-        art.add(g, "beacon", 0, 0.32, 0, 1, t.owner);
-        addLabel("◇ BEACON", t.x - center, 1.52, t.z - center, "beacon-label");
+        art.add(
+          g,
+          beaconActive(s, t) ? "beacon" : "meridian_dormant",
+          0,
+          0.32,
+          0,
+          1,
+          t.owner,
+        );
+        addLabel(
+          beaconActive(s, t) ? "◇ BEACON" : "◇ DORMANT",
+          t.x - center,
+          1.52,
+          t.z - center,
+          "beacon-label",
+        );
       } else if (t.beacon) {
         mesh(g, "Cylinder", [0.31, 0.37, 0.12, 6], 0xcac3a4, 0, 0.36, 0);
         mesh(g, "Cylinder", [0.1, 0.15, 0.55, 5], 0xebe1ba, 0, 0.67, 0);
@@ -472,18 +521,29 @@ export function createWorld(host, onPick) {
           g,
           "Octahedron",
           [0.23, 0],
-          t.owner === null ? 0xfbd77d : factionColors[t.owner],
+          !beaconActive(s, t)
+            ? 0x667d84
+            : t.owner === null
+              ? 0xfbd77d
+              : factionColors[t.owner],
           0,
           1.12,
           0,
         );
         crystal.rotation.y = 0.3;
-        addLabel("◇ BEACON", t.x - center, 1.52, t.z - center, "beacon-label");
+        addLabel(
+          beaconActive(s, t) ? "◇ BEACON" : "◇ DORMANT",
+          t.x - center,
+          1.52,
+          t.z - center,
+          "beacon-label",
+        );
       }
       if (
         !t.city &&
         !t.beacon &&
         !t.improved &&
+        !site &&
         t.terrain === "grass" &&
         t.id % 3 === 0
       ) {
@@ -499,7 +559,14 @@ export function createWorld(host, onPick) {
             -0.25,
           );
       }
-      if (art && !t.city && !t.beacon && !t.improved && t.terrain === "grass") {
+      if (
+        art &&
+        !site &&
+        !t.city &&
+        !t.beacon &&
+        !t.improved &&
+        t.terrain === "grass"
+      ) {
         for (let i = 0; i < 7; i++) {
           const x = ((t.id * 17 + i * 37) % 89) / 100 - 0.44,
             z = ((t.id * 29 + i * 19) % 87) / 100 - 0.43;
@@ -511,10 +578,30 @@ export function createWorld(host, onPick) {
       const t = s.tiles[u.tile],
         g = new THREE.Group();
       g.name = `Unit_${u.id}_${u.type}`;
-      const unitElevation = t.terrain === "mountain" ? 0.95 : t.city ? 0.25 : 0;
-      g.position.set(t.x - center, unitElevation, t.z - center);
+      const occupiedLandProp =
+        t.terrain !== "water" &&
+        (t.city || t.beacon || siteAt(s, t.id)?.owner === null);
+      const unitElevation = t.terrain === "mountain" ? 0.95 : 0;
+      g.position.set(
+        t.x - center + (occupiedLandProp ? 0.3 : 0),
+        unitElevation,
+        t.z - center + (occupiedLandProp ? 0.3 : 0),
+      );
+      if (occupiedLandProp) g.scale.setScalar(0.72);
       board.add(g);
       const color = factionColors[u.owner];
+      if (u.guarded) {
+        const shield = mesh(
+          g,
+          "Torus",
+          [0.13, 0.02, 6, 16],
+          0x98ddf4,
+          -0.26,
+          1.22,
+          0.04,
+        );
+        shield.name = "Guarded_unit_marker";
+      }
       if (t.terrain === "water" && !art && UNITS[u.type].domain !== "water") {
         // Keep amphibious armies visually supported above the sea surface.
         const frozen = s.players[u.owner].tech.includes("frozenpaths");
@@ -544,13 +631,13 @@ export function createWorld(host, onPick) {
           );
         addLabel(
           `${u.hp} ${u.owner === 0 && !u.attacked ? "•" : ""}`,
-          t.x - center,
+          g.position.x,
           (UNITS[u.type].mounted
             ? 1.9
             : UNITS[u.type].domain === "water"
               ? 1
               : 1.5) + unitElevation,
-          t.z - center,
+          g.position.z,
           `hp-label owner-${u.owner} ${u.moved && u.attacked ? "spent" : ""}`,
         );
         continue;
@@ -649,6 +736,7 @@ export function createWorld(host, onPick) {
       s.explored[0],
       s.players.map((p) => [p.faction, p.livery]),
       s.climates,
+      s.chronicle,
     ]);
     if (signature !== lastSignature) {
       rebuild(s);
@@ -779,6 +867,7 @@ export function createWorld(host, onPick) {
           state.explored[0],
           state.players.map((p) => [p.faction, p.livery]),
           state.climates,
+          state.chronicle,
         ]);
       }
       return true;

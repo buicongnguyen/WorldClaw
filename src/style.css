@@ -1241,3 +1241,95 @@ dialog .eyebrow {
   padding: 16px 0;
   color: #f4dfab;
 }
+.chronicle-card {
+  background: #204048;
+  border: 1px solid #638d8755;
+  border-radius: 12px;
+  padding: 18px;
+  margin: 14px 0;
+}
+.chronicle-card p {
+  margin: 10px 0;
+  font-family: Georgia, serif;
+  color: #f2dca6;
+  line-height: 1.5;
+}
+.chronicle-card button {
+  width: 100%;
+  margin-top: 12px;
+}
+#story-resources {
+  color: #b9d9d2;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.story-quote {
+  margin: 18px 0;
+  border-left: 3px solid #dcbe76;
+  padding: 12px 18px;
+  background: #24484d;
+  line-height: 1.8;
+  color: #e7d9b7;
+}
+.story-ledger {
+  color: #f4d48c;
+}
+.council-chapter {
+  border-top: 1px solid #75918a66;
+  margin: 24px 0;
+  padding-top: 12px;
+}
+.council-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.council-option {
+  border: 1px solid #59776e;
+  border-radius: 10px;
+  padding: 16px;
+  background: #1d4146;
+}
+.council-option.chosen {
+  border-color: #e3c77f;
+  background: #284c45;
+}
+.council-option h4 {
+  color: #f4dfab;
+  margin: 0;
+}
+.council-option small {
+  display: block;
+  line-height: 1.7;
+  color: #b9d1c5;
+}
+.council-option button {
+  width: 100%;
+  margin: 12px 0;
+}
+.discovery-journal article {
+  border-bottom: 1px solid #59776e;
+  padding: 16px 0;
+}
+.discovery-journal b {
+  color: #e3c77f;
+}
+.event-log {
+  padding-left: 20px;
+  color: #b9d1c5;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.story-ending {
+  padding: 18px;
+  border: 1px solid #b8a87855;
+  background: #254744;
+}
+.discovery-label {
+  background: #314641dd;
+  color: #ffe4a1;
+  font-size: 9px;
+  padding: 3px 6px;
+  border: 1px solid #c7ab6966;
+  border-radius: 4px;
+}

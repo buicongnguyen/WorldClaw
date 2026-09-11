@@ -2,6 +2,7 @@
 import { factionId } from "./factions.js";
 import { climateAt } from "./climate.js";
 import { NAVAL_ROLES } from "./appearance.js";
+import { siteAt } from "./chronicle.js";
 export const TECHS = {
   riding: {
     name: "Riding",
@@ -18,7 +19,7 @@ export const TECHS = {
     cost: 16,
     branch: "Seafaring",
     description:
-      "Coastal cities launch gunships. Fire or move, not both; spent gunships cannot retaliate until their next turn.",
+      "Coastal cities launch gunships. Fire or move, not both; Guard lets a ready crew prepare defensive fire.",
   },
   dunewarfare: {
     name: "Dune Warfare",
@@ -356,13 +357,21 @@ export const SPECIALIZATIONS = {
 export const has = (s, owner, tech) => s.players[owner].tech.includes(tech);
 export const prerequisites = (key) =>
   [TECHS[key]?.requires, ...(TECHS[key]?.requiresAll ?? [])].filter(Boolean);
-export const researchCost = (s, key, owner = s.active) =>
+const nativeResearchCost = (s, key, owner) =>
   TECHS[key].cost -
   ((factionId(s, owner) === "desert" &&
     ["desertfarming", "oasisengineering"].includes(key)) ||
   (factionId(s, owner) === "ice" && ["icefarming", "greenhouses"].includes(key))
     ? 2
     : 0);
+export const insightSpent = (s, key, owner = s.active) =>
+  Math.min(
+    4,
+    s.chronicle?.players[owner].insight ?? 0,
+    Math.max(0, nativeResearchCost(s, key, owner) - 1),
+  );
+export const researchCost = (s, key, owner = s.active) =>
+  nativeResearchCost(s, key, owner) - insightSpent(s, key, owner);
 export function nextBuilding(s, t) {
   if (t.building === "oasis") return "oasis2";
   if (t.building === "icefarm") return "greenhouse";
@@ -394,6 +403,8 @@ export function researchReason(s, key) {
 }
 export function developmentReason(s, t, type, kind) {
   const p = s.players[s.active];
+  if (t && siteAt(s, t.id)?.owner === null)
+    return "Recover this archive before developing its land.";
   if (
     !t ||
     t.owner !== s.active ||

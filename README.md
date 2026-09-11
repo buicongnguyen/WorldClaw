@@ -2,6 +2,10 @@
 
 A playable 3D island strategy game: explore the unknown, grow settlements, research new abilities, and outmaneuver a rival tribe. New games require 24 beacon renown and a lead after a full round, or completed occupation of the rival capital. Older saves retain their 12-renown target.
 
+**The Broken Meridian:** New expeditions now include an original three-chapter story, nine tribal motivations, two advisers, six recoverable archives/wrecks, branching council resolutions and choice-aware endings. Recover fragments and restore dormant beacons before they score. Choose supplies, research insight or charts from each discovery. **Guard** gives an unused unit +1 defense until its next turn. Open **Story & council** in the realm panel for your objectives, lore and discovery journal.
+
+Existing saved games retain skirmish rules. Choose **New island** with **The Broken Meridian** checked to play the story, or uncheck it for a new skirmish. See the [detailed story, improvement plan and review](docs/BROKEN_MERIDIAN_PLAN.md). Comparative simulations increased the average match from 10.3 to 15 rounds and naval participation from 33% to 80%; these are AI pacing measurements, not human-playtest or competitive-balance guarantees.
+
 New expeditions use **17×17 islands**, eight neutral villages and a 40-round limit. **New island** also offers the original 11×11 / 30-round quick skirmish. Existing saves keep their original map. Connected research, specialized buildings, veterans and occupation are now implemented; see [progression rules and review](docs/PROGRESSION_RELEASE.md).
 
 **[Play on GitHub Pages](https://buicongnguyen.github.io/WorldClaw/)**

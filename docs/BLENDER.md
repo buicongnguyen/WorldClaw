@@ -1,6 +1,6 @@
 # Blender asset pipeline
 
-The game loads two original Blender packs: 19 environment/legacy prototypes in `art/kingdom.blend` → `public/models/kingdom.glb`, and 65 modular army prototypes in `art/armies.blend` → `public/models/armies.glb`. Portable Blender stays in ignored `.tooling/`, not the deployment.
+The game loads three original Blender packs: 19 environment/legacy prototypes in `art/kingdom.blend` → `public/models/kingdom.glb`, 65 modular army prototypes in `art/armies.blend` → `public/models/armies.glb`, and three story landmarks in `art/chronicle.blend` → `public/models/chronicle.glb`. Portable Blender stays in ignored `.tooling/`, not the deployment.
 
 ## Rebuild or edit
 
@@ -18,6 +18,12 @@ blender --background --python-exit-code 1 --python tools/blender/build_armies.py
 
 # Export hand-edited army geometry without regenerating/saving the source:
 blender --background art/armies.blend --python-exit-code 1 --python tools/blender/export_armies.py -- /absolute/repository/path
+
+# Regenerate the story landmarks and their review sheet:
+blender --background --python-exit-code 1 --python tools/blender/build_chronicle.py -- /absolute/repository/path
+
+# Export manual story-landmark edits without overwriting the .blend:
+blender --background art/chronicle.blend --python-exit-code 1 --python tools/blender/export_chronicle.py -- /absolute/repository/path
 ```
 
 The source catalog arranges models on a grid. The exporter removes layout offsets in memory and never saves those changes to the source. Keep the 19 named mesh objects; edit their geometry in Edit Mode. Their origins sit at ground center. Blender Z-up becomes glTF/Three.js Y-up. One tile is one meter. Preserve the names `Faction_cloth` and `Beacon_crystal` for runtime owner coloring.
@@ -35,6 +41,12 @@ Preserve material names `Faction_cloth`, `Faction_sail` and `Skin`. Cloth/sails 
 Review sheets: `public/art/unit-roster.png` and `public/art/tribe-styles.png`. Open **Army & styles** in game to view them. Sheets come from the procedural generator; exporting manual geometry edits does **not** re-render them. Regeneration also replaces manual edits, so preserve authored work on a separate branch before regenerating. For hand-edited catalogs, update renders from a separate Blender studio scene.
 
 The browser-exported full army scene has been imported back into Blender successfully. Its hierarchy includes units, chosen outfits, ship prows and embedded textures. Current artist handoff and quality limitations are recorded in [the army plan](ARMY_ART_PLAN.md).
+
+## Story landmarks
+
+Preserve `meridian_archive`, `meridian_wreck` and `meridian_dormant` mesh names and origins. The dormant model changes to the existing lit `beacon` after restoration. Discovery props are shown only on charted tiles and shrink to remains after recovery; visiting vessels are kept clear of wreck geometry. Units on land landmarks use a smaller, offset presentation so their bodies do not intersect the prop. This is a rendering arrangement, not a change to tile occupancy or combat range.
+
+`public/art/chronicle-sites.png` is the Blender-rendered studio sheet. The source exporter and browser-to-Blender round-trip have been tested. Regeneration replaces manual edits; manual export does not re-render the sheet. See [the story implementation and review](BROKEN_MERIDIAN_PLAN.md).
 
 ## Inspect and export
 

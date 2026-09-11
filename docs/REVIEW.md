@@ -2,6 +2,8 @@
 
 Reviewed 2026-09-11. This is a self-review with automated evidence, not an independent reviewer claim.
 
+The main sections below preserve the original baseline review. Subsequent functionality and current verification are documented in [the army review](ARMY_ART_PLAN.md) and [the Broken Meridian story review](BROKEN_MERIDIAN_PLAN.md).
+
 ## Completed scope
 
 The implementation sequence in GAME_PLAN.md has corresponding source, documentation and deployment configuration. Actual 3D geometry is rendered; selecting tiles dispatches validated game commands. A bounded AI uses the same economy and action checks. Both victory paths and the 30-round outcome are implemented. Autosave and charted-world GLB export work without a backend.
@@ -41,8 +43,8 @@ The implementation sequence in GAME_PLAN.md has corresponding source, documentat
 
 - Gameplay balance needs human playtesting; no claim that costs, AI strength or renown pacing are optimal.
 - Charted fog intentionally stays revealed; there is no live line-of-sight system. Public faction renown and event reports are visible.
-- No multiplayer, naval units, import-back editor, animation system or authored Blender replacement assets.
-- The Blender helper is provided but Blender was not installed in the inspected environment; a Blender round-trip is not claimed. GLB structure and download are tested separately.
+- No multiplayer, in-game import-back editor or rigged character-animation system. Later releases add naval units, mounted troops, original procedural Blender assets and a story mode.
+- Blender 4.5.9 is now installed locally for authoring. Army and story scenes have passed browser-export/Blender-import round trips; see the current pipeline and release reviews.
 - Automated browser tests use Chromium software rendering; other GPUs, Safari and Firefox still need compatibility testing.
 - Existing WorldClaw paper/assets remain research material and are not included in the deployed game bundle.
 

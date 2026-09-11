@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { ARMY_ASSETS, appearanceFor } from "./appearance.js";
+import { STORY_ASSETS } from "./chronicle.js";
 
 export const ART_ASSETS = [
   "cottage",
@@ -24,8 +25,8 @@ export const ART_ASSETS = [
   "sentinel",
 ];
 export async function loadArt() {
-  const [gltf, armies] = await Promise.all(
-    ["kingdom", "armies"].map((name) =>
+  const [gltf, armies, chronicle] = await Promise.all(
+    ["kingdom", "armies", "chronicle"].map((name) =>
       new GLTFLoader().loadAsync(
         `${import.meta.env.BASE_URL}models/${name}.glb`,
       ),
@@ -34,6 +35,10 @@ export async function loadArt() {
   const prototypes = new Map([
     ...ART_ASSETS.map((name) => [name, gltf.scene.getObjectByName(name)]),
     ...ARMY_ASSETS.map((name) => [name, armies.scene.getObjectByName(name)]),
+    ...STORY_ASSETS.map((name) => [
+      name,
+      chronicle.scene.getObjectByName(name),
+    ]),
   ]);
   for (const [name, object] of prototypes)
     if (!object) throw new Error(`Missing Blender model: ${name}`);
