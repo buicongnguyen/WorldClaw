@@ -13,12 +13,72 @@ import {
   combatPreview,
   targets,
   UNITS,
+  mapSize,
+  roundLimit,
 } from "../src/game.js";
 const act = (s, a) => {
   const r = command(s, a);
   assert.equal(r.error, null);
   return r.state;
 };
+
+test("large maps preserve symmetry and connected objectives across 100 seeds", () => {
+  for (let seed = 0; seed < 100; seed++) {
+    const s = createGame(seed, 17);
+    assert.equal(s.tiles.length, 289);
+    assert.equal(roundLimit(s), 40);
+    assert.ok(validateSave(s));
+    assert.deepEqual(s, createGame(seed, 17));
+    assert.equal(
+      s.tiles.filter((t) => t.city && t.city.capital === null).length,
+      8,
+    );
+    for (const t of s.tiles)
+      assert.equal(t.terrain, s.tiles[288 - t.id].terrain);
+    const start = s.tiles.find((t) => t.city?.capital === 0).id;
+    const seen = new Set([start]),
+      queue = [start];
+    while (queue.length)
+      for (const n of neighbors(s, s.tiles[queue.shift()]))
+        if (passable(n) && !seen.has(n.id)) {
+          seen.add(n.id);
+          queue.push(n.id);
+        }
+    for (const t of s.tiles.filter((t) => t.city || t.beacon))
+      assert.ok(seen.has(t.id));
+    for (const t of s.tiles)
+      for (const n of neighbors(s, t))
+        assert.equal(Math.abs(n.x - t.x) + Math.abs(n.z - t.z), 1);
+  }
+});
+test("old 11x11 saves without size remain valid and unsupported sizes fail", () => {
+  const s = createGame();
+  delete s.size;
+  assert.equal(mapSize(s), 11);
+  assert.ok(validateSave(s));
+  s.size = 18;
+  assert.equal(validateSave(s), false);
+  assert.throws(() => createGame(1, 18), /Unsupported/);
+});
+test("large-map round limit is 40 and both sides receive their final turn", () => {
+  let s = createGame(417, 17);
+  s.round = 40;
+  s = act(s, { type: "end" });
+  assert.equal(s.winner, null);
+  s = act(s, { type: "end" });
+  assert.equal(s.winner, -1);
+});
+test("large-map AI terminates and preserves saves over 40 seeds", () => {
+  for (let seed = 0; seed < 40; seed++) {
+    let s = createGame(seed, 17);
+    for (let turn = 0; turn < 41 && s.winner === null; turn++) {
+      s = act(s, { type: "end" });
+      s = aiTurn(s);
+      assert.ok(validateSave(s));
+    }
+    assert.notEqual(s.winner, null);
+  }
+});
 test("100 seeded boards are deterministic, symmetric and all objectives connected", () => {
   for (let seed = 0; seed < 100; seed++) {
     const s = createGame(seed);

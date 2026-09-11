@@ -1,4 +1,7 @@
 export const SIZE = 11;
+export const MAP_SIZES = [11, 17];
+export const mapSize = (s) => s.size ?? SIZE;
+export const roundLimit = (s) => (mapSize(s) === 17 ? 40 : 30);
 export const GOAL = 12;
 export const FACTIONS = ["Canopy Covenant", "Ember Court"];
 export const UNITS = {
@@ -23,7 +26,7 @@ export const TECHS = {
     description: "Your cities provide +1 damage protection.",
   },
 };
-export const idAt = (x, z) => z * SIZE + x;
+export const idAt = (x, z, size = SIZE) => z * size + x;
 export const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
 export const neighbors = (s, t) =>
   [
@@ -32,7 +35,7 @@ export const neighbors = (s, t) =>
     [0, 1],
     [0, -1],
   ]
-    .map(([x, z]) => s.tiles[idAt(t.x + x, t.z + z)])
+    .map(([x, z]) => s.tiles[idAt(t.x + x, t.z + z, mapSize(s))])
     .filter((n) => n && distance(t, n) === 1);
 export const unitAt = (s, tile) => s.units.find((u) => u.tile === tile);
 export const passable = (t) => t && !["water", "mountain"].includes(t.terrain);
@@ -47,10 +50,15 @@ function random(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-export function createGame(seed = 417) {
+export function createGame(seed = 417, size = SIZE) {
+  if (!MAP_SIZES.includes(size)) throw new Error("Unsupported island size");
+  const at = (x, z) => idAt(x, z, size);
+  const center = (size - 1) / 2;
+  const last = size - 1;
   const rng = random(seed);
   const s = {
     version: 1,
+    size,
     seed: seed >>> 0,
     round: 1,
     active: 0,
@@ -63,19 +71,19 @@ export function createGame(seed = 417) {
     explored: [[], []],
     log: ["Your people have reached the island. Chart a path to the beacons."],
   };
-  for (let z = 0; z < SIZE; z++)
-    for (let x = 0; x < SIZE; x++) {
-      const i = idAt(x, z),
-        mirror = 120 - i;
+  for (let z = 0; z < size; z++)
+    for (let x = 0; x < size; x++) {
+      const i = at(x, z),
+        mirror = size * size - 1 - i;
       const r = rng();
       const terrain =
         mirror < i
           ? s.tiles[mirror].terrain
           : x === 0 ||
               z === 0 ||
-              x === 10 ||
-              z === 10 ||
-              ((x === 1 || x === 9) && (z === 1 || z === 9))
+              x === last ||
+              z === last ||
+              ((x === 1 || x === last - 1) && (z === 1 || z === last - 1))
             ? "water"
             : r < 0.16
               ? "mountain"
@@ -94,40 +102,54 @@ export function createGame(seed = 417) {
       });
     }
   // A connected backbone and city approaches eliminate impossible seeds.
-  for (let i = 1; i < 10; i++) {
-    s.tiles[idAt(5, i)].terrain = "grass";
-    s.tiles[idAt(i, 5)].terrain = "grass";
+  for (let i = 1; i < last; i++) {
+    s.tiles[at(center, i)].terrain = "grass";
+    s.tiles[at(i, center)].terrain = "grass";
   }
-  const cities = [
-    [2, 7, "Willowhome", 0],
-    [8, 3, "Cinderhold", 1],
-    [3, 3, "Mossgate", null],
-    [7, 7, "Sunhollow", null],
-    [2, 5, "Westmere", null],
-    [8, 5, "Eastmere", null],
-  ];
+  const cities =
+    size === 11
+      ? [
+          [2, 7, "Willowhome", 0],
+          [8, 3, "Cinderhold", 1],
+          [3, 3, "Mossgate", null],
+          [7, 7, "Sunhollow", null],
+          [2, 5, "Westmere", null],
+          [8, 5, "Eastmere", null],
+        ]
+      : [
+          [3, 12, "Willowhome", 0],
+          [13, 4, "Cinderhold", 1],
+          [4, 4, "Mossgate", null],
+          [12, 12, "Sunhollow", null],
+          [3, 8, "Westmere", null],
+          [13, 8, "Eastmere", null],
+          [6, 12, "Fernwatch", null],
+          [10, 4, "Ashford", null],
+          [6, 6, "Northgrove", null],
+          [10, 10, "Amberfield", null],
+        ];
   for (const [x, z, name, owner] of cities) {
-    const t = s.tiles[idAt(x, z)];
+    const t = s.tiles[at(x, z)];
     t.terrain = "grass";
     t.owner = owner;
     t.city = { name, level: 1, capital: owner };
     let cx = x;
-    while (cx !== 5) {
-      s.tiles[idAt(cx, z)].terrain = "grass";
-      cx += Math.sign(5 - cx);
+    while (cx !== center) {
+      s.tiles[at(cx, z)].terrain = "grass";
+      cx += Math.sign(center - cx);
     }
     for (const n of neighbors(s, t)) n.terrain = "grass";
     if (owner !== null) claim(s, t, owner);
   }
-  for (const z of [2, 5, 8]) {
-    const t = s.tiles[idAt(5, z)];
+  for (const z of size === 11 ? [2, 5, 8] : [3, 8, 13]) {
+    const t = s.tiles[at(center, z)];
     t.beacon = true;
     t.terrain = "grass";
   }
   s.units = [
     {
       id: 1,
-      tile: idAt(3, 7),
+      tile: at(cities[0][0] + 1, cities[0][1]),
       owner: 0,
       type: "scout",
       hp: 8,
@@ -136,7 +158,7 @@ export function createGame(seed = 417) {
     },
     {
       id: 2,
-      tile: idAt(7, 3),
+      tile: at(cities[1][0] - 1, cities[1][1]),
       owner: 1,
       type: "scout",
       hp: 8,
@@ -367,7 +389,7 @@ export function command(state, action) {
     log(s, `${FACTIONS[s.active]} learned ${tech.name}.`);
   } else if (action.type === "end") {
     if (s.active === 1) {
-      if (s.round >= 30) {
+      if (s.round >= roundLimit(s)) {
         const score = (owner) => [
           s.players[owner].renown,
           s.tiles.filter((t) => t.city && t.owner === owner).length,
@@ -388,7 +410,7 @@ export function command(state, action) {
           winner,
           winner < 0
             ? "The island is shared. The expedition ends in a draw."
-            : `${FACTIONS[winner]} prevailed after 30 rounds.`,
+            : `${FACTIONS[winner]} prevailed after ${roundLimit(s)} rounds.`,
         );
         return { state: s, error: null };
       }
@@ -500,8 +522,9 @@ export function validateSave(s) {
   if (
     !s ||
     s.version !== 1 ||
+    !MAP_SIZES.includes(mapSize(s)) ||
     !int(s.seed, 0, 4294967295) ||
-    !int(s.round, 1, 30) ||
+    !int(s.round, 1, roundLimit(s)) ||
     ![0, 1].includes(s.active) ||
     ![null, -1, 0, 1].includes(s.winner) ||
     typeof s.reason !== "string" ||
@@ -525,13 +548,13 @@ export function validateSave(s) {
     return false;
   if (
     !Array.isArray(s.tiles) ||
-    s.tiles.length !== SIZE * SIZE ||
+    s.tiles.length !== mapSize(s) * mapSize(s) ||
     !s.tiles.every(
       (t, i) =>
         t &&
         t.id === i &&
-        t.x === i % SIZE &&
-        t.z === Math.floor(i / SIZE) &&
+        t.x === i % mapSize(s) &&
+        t.z === Math.floor(i / mapSize(s)) &&
         ["water", "grass", "forest", "mountain"].includes(t.terrain) &&
         [null, 0, 1].includes(t.owner) &&
         typeof t.beacon === "boolean" &&
@@ -553,7 +576,7 @@ export function validateSave(s) {
         u &&
         int(u.id, 1, s.nextId - 1) &&
         [0, 1].includes(u.owner) &&
-        int(u.tile, 0, 120) &&
+        int(u.tile, 0, mapSize(s) ** 2 - 1) &&
         passable(s.tiles[u.tile]) &&
         Object.hasOwn(UNITS, u.type) &&
         int(u.hp, 1, UNITS[u.type].hp) &&
@@ -568,7 +591,7 @@ export function validateSave(s) {
     [0, 1].some((owner) => s.units.filter((u) => u.owner === owner).length > 10)
   )
     return false;
-  const canonical = createGame(s.seed);
+  const canonical = createGame(s.seed, mapSize(s));
   if (
     s.tiles.some(
       (t, i) =>
@@ -587,9 +610,9 @@ export function validateSave(s) {
     s.explored.every(
       (a) =>
         Array.isArray(a) &&
-        a.length <= 121 &&
+        a.length <= mapSize(s) ** 2 &&
         new Set(a).size === a.length &&
-        a.every((i) => int(i, 0, 120)),
+        a.every((i) => int(i, 0, mapSize(s) ** 2 - 1)),
     ) &&
     Array.isArray(s.log) &&
     s.log.length <= 30 &&

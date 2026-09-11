@@ -2,6 +2,8 @@
 
 A playable 3D island strategy game: explore the unknown, grow settlements, research new abilities, and outmaneuver the Ember Court. Win by earning 12 beacon renown or capturing the rival capital.
 
+New expeditions use **17×17 islands**, eight neutral villages and a 40-round limit. **New island** also offers the original 11×11 / 30-round quick skirmish. Existing saves keep their original map. See the [map and progression evaluation](docs/PROGRESSION_EVALUATION.md) for measured map comparisons and proposed research, building and occupation chains.
+
 **[Play on GitHub Pages](https://buicongnguyen.github.io/WorldClaw/)**
 
 Original low-poly meshes, names and rules inspired by compact turn-based 4X games such as The Battle of Polytopia. This is an independent single-player prototype, not affiliated with Midjiwan or Tencent.

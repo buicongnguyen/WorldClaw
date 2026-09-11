@@ -10,16 +10,20 @@ test("desktop: real WebGL, movement, recruitment, research, save, AI and export"
   await page.goto("/");
   await expect(page.locator("canvas")).toBeVisible();
   await page.waitForFunction(() => !!window.__game);
+  const initial = await page.evaluate(() => window.__game.getState());
+  expect(initial.size).toBe(17);
+  const capital = initial.tiles.find((t) => t.city?.capital === 0).id;
+  const scout = initial.units[0].tile;
   await page.screenshot({ path: "test-results/desktop-initial.png" });
-  await page.locator("#tile-picker").selectOption("79");
+  await page.locator("#tile-picker").selectOption(String(capital));
   await page.getByRole("button", { name: "Guardian" }).click();
   await expect(page.locator("#stars")).toHaveText("7");
   await page.locator("#research").click();
   await page.locator('[data-tech="archery"]').click();
   await expect(page.locator('[data-tech="archery"]')).toHaveText("Learned");
   await page.getByRole("button", { name: "Close dialog" }).click();
-  await page.locator("#tile-picker").selectOption("80");
-  await page.locator("#tile-picker").selectOption("81");
+  await page.locator("#tile-picker").selectOption(String(scout));
+  await page.locator("#tile-picker").selectOption(String(scout + 1));
   await page.getByRole("button", { name: /Move to/ }).click();
   await expect
     .poll(() =>
@@ -27,7 +31,7 @@ test("desktop: real WebGL, movement, recruitment, research, save, AI and export"
         () => window.__game.getState().units.find((u) => u.id === 1).tile,
       ),
     )
-    .toBe(81);
+    .toBe(scout + 1);
   await page.locator("#end-turn").click();
   await expect(page.locator("#round")).toContainText("02");
   await expect(page.locator("#turn-label")).toHaveText("Your turn");
@@ -68,6 +72,12 @@ test("mobile: layout, help and restart", async ({ page }) => {
   await page.locator("#start-new").click();
   await expect(page.locator("#explored")).toContainText("123");
   await expect(page.locator("#round")).toContainText("01");
+  await expect(page.locator("#round")).toContainText("40");
+  await page.locator("#new-game").click();
+  await page.locator("#map-size").selectOption("11");
+  await page.locator("#start-new").click();
+  await expect(page.locator("#explored")).toContainText("11×11");
+  await expect(page.locator("#round")).toContainText("30");
 });
 test("corrupt autosave recovers without crashing", async ({ page }) => {
   await page.addInitScript(() =>

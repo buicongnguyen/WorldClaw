@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { SIZE, UNITS, reachable, targets } from "./game.js";
+import { SIZE, mapSize, UNITS, reachable, targets } from "./game.js";
 
 const colors = {
   grass: [0x85b88a, 0x93bf91, 0x78ac80],
@@ -11,6 +11,8 @@ const colors = {
 };
 export const factionColors = [0x75e4c0, 0xed9375];
 export function createWorld(host, onPick) {
+  let boardSize = SIZE,
+    center = (SIZE - 1) / 2;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x183e49);
   scene.fog = new THREE.Fog(0x183e49, 27, 60);
@@ -174,7 +176,7 @@ export function createWorld(host, onPick) {
         terrain = known ? t.terrain : "fog";
       const g = new THREE.Group();
       g.name = `Tile_${t.x}_${t.z}_${terrain}`;
-      g.position.set(t.x - 5, 0, t.z - 5);
+      g.position.set(t.x - center, 0, t.z - center);
       board.add(g);
       const palette = colors[terrain],
         color = palette[(t.id * 7 + s.seed) % palette.length];
@@ -278,9 +280,9 @@ export function createWorld(host, onPick) {
         );
         addLabel(
           `${t.city.capital !== null ? "♛ " : ""}${t.city.name}`,
-          t.x - 5,
+          t.x - center,
           0.2,
-          t.z - 4.55,
+          t.z - center + 0.45,
           `city-label owner-${t.owner}`,
         );
       }
@@ -297,7 +299,7 @@ export function createWorld(host, onPick) {
           0,
         );
         crystal.rotation.y = 0.3;
-        addLabel("◇ BEACON", t.x - 5, 1.52, t.z - 5, "beacon-label");
+        addLabel("◇ BEACON", t.x - center, 1.52, t.z - center, "beacon-label");
       }
       if (
         !t.city &&
@@ -322,7 +324,7 @@ export function createWorld(host, onPick) {
       const t = s.tiles[u.tile],
         g = new THREE.Group();
       g.name = `Unit_${u.id}_${u.type}`;
-      g.position.set(t.x - 5, t.city ? 0.25 : 0, t.z - 5);
+      g.position.set(t.x - center, t.city ? 0.25 : 0, t.z - center);
       board.add(g);
       const color = factionColors[u.owner];
       mesh(g, "Cylinder", [0.23, 0.28, 0.08, 12], 0x314e50, 0, 0.36, 0.05);
@@ -360,14 +362,27 @@ export function createWorld(host, onPick) {
         mesh(g, "Box", [0.17, 0.24, 0.04], color, -0.15, 0.66, 0.13);
       addLabel(
         `${u.hp} ${u.owner === 0 && !u.attacked ? "•" : ""}`,
-        t.x - 5,
+        t.x - center,
         1.4 + (t.city ? 0.25 : 0),
-        t.z - 5,
+        t.z - center,
         `hp-label owner-${u.owner} ${u.moved && u.attacked ? "spent" : ""}`,
       );
     }
   }
   function update(s, selectedTile, selectedUnit) {
+    if (boardSize !== mapSize(s)) {
+      boardSize = mapSize(s);
+      center = (boardSize - 1) / 2;
+      resize();
+      resetCamera();
+      Object.assign(sun.shadow.camera, {
+        left: -boardSize,
+        right: boardSize,
+        top: boardSize,
+        bottom: -boardSize,
+      });
+      sun.shadow.camera.updateProjectionMatrix();
+    }
     state = s;
     selected = selectedTile;
     const signature = JSON.stringify([s.tiles, s.units, s.explored[0]]);
@@ -384,9 +399,9 @@ export function createWorld(host, onPick) {
         "Ring",
         [radius - 0.035, radius, 4],
         c,
-        t.x - 5,
+        t.x - center,
         0.34,
-        t.z - 5,
+        t.z - center,
       );
       ring.rotation.x = -Math.PI / 2;
       ring.rotation.z = Math.PI / 4;
@@ -405,7 +420,7 @@ export function createWorld(host, onPick) {
       h = host.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h);
-    const view = Math.max(8, (8.2 * h) / w);
+    const view = (Math.max(8, (8.2 * h) / w) * boardSize) / SIZE;
     camera.left = (-view * w) / h;
     camera.right = (view * w) / h;
     camera.top = view;
@@ -505,7 +520,7 @@ export function createWorld(host, onPick) {
     },
     tileScreen: (id) => {
       const t = state.tiles[id],
-        p = new THREE.Vector3(t.x - 5, 0.32, t.z - 5).project(camera);
+        p = new THREE.Vector3(t.x - center, 0.32, t.z - center).project(camera);
       return {
         x: ((p.x + 1) * host.clientWidth) / 2,
         y: ((-p.y + 1) * host.clientHeight) / 2,

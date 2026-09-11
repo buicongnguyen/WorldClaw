@@ -747,7 +747,8 @@ dialog .eyebrow {
   font-size: 13px;
   color: var(--muted);
 }
-.seed-label input {
+.seed-label input,
+.seed-label select {
   width: 100%;
   padding: 12px;
   background: #0c282f;

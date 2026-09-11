@@ -13,6 +13,8 @@ import {
   targets,
   combatPreview,
   validateSave,
+  mapSize,
+  roundLimit,
 } from "./game.js";
 import { createWorld } from "./world.js";
 
@@ -26,8 +28,8 @@ const escape = (value) =>
       ],
   );
 let saveNotice = "",
-  state = createGame(),
-  selectedTile = 80,
+  state = createGame(417, 17),
+  selectedTile = state.units[0].tile,
   selectedUnit = 1,
   busy = false,
   sound = false,
@@ -39,7 +41,9 @@ try {
     if (validateSave(saved)) {
       state = saved;
       selectedUnit = state.units.find((u) => u.owner === 0)?.id ?? null;
-      selectedTile = state.units.find((u) => u.id === selectedUnit)?.tile ?? 79;
+      selectedTile =
+        state.units.find((u) => u.id === selectedUnit)?.tile ??
+        state.tiles.find((t) => t.city?.capital === 0).id;
     } else
       saveNotice = "An incompatible save was ignored. A fresh island awaits.";
   }
@@ -148,7 +152,7 @@ function render() {
   $("#stars").textContent = p.stars;
   $("#income").textContent = `+${income(state, 0)} / turn`;
   $("#round").innerHTML =
-    `${String(state.round).padStart(2, "0")} <span>/ 30</span>`;
+    `${String(state.round).padStart(2, "0")} <span>/ ${roundLimit(state)}</span>`;
   $("#cities").textContent = state.tiles.filter(
     (t) => t.city && t.owner === 0,
   ).length;
@@ -162,7 +166,7 @@ function render() {
   $("#enemy-bar").style.width =
     `${Math.min(100, (state.players[1].renown / GOAL) * 100)}%`;
   $("#explored").textContent =
-    `${Math.round((state.explored[0].length / 121) * 100)}% CHARTED · SEED ${state.seed}`;
+    `${Math.round((state.explored[0].length / state.tiles.length) * 100)}% CHARTED · ${mapSize(state)}×${mapSize(state)} · SEED ${state.seed}`;
   $("#turn-label").textContent =
     state.winner !== null
       ? "Expedition complete"
@@ -301,15 +305,19 @@ function showResearch() {
   );
 }
 function showHelp() {
+  const limitDescription = `This ${mapSize(state)}×${mapSize(state)} island lasts at most ${roundLimit(state)} rounds.`;
   modal(
-    `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your scout.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles and charted land stays visible.</li><li><b>Grow your realm.</b> Occupy villages to claim them. Select an empty owned city to recruit; newly recruited units act next turn. Estates cost 4 stars and add 1 income.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water and peaks cannot be crossed.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown at the start of your turn. Reach 12 or occupy the rival capital. After 30 rounds, renown, then city count, then surviving HP decide the winner.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
+    `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your scout.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles and charted land stays visible.</li><li><b>Grow your realm.</b> Occupy villages to claim them. Select an empty owned city to recruit; newly recruited units act next turn. Estates cost 4 stars and add 1 income.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water and peaks cannot be crossed.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown at the start of your turn. Reach 12 or occupy the rival capital. After ${roundLimit(state)} rounds, renown, then city count, then surviving HP decide the winner.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
   );
+  const limitNote = document.createElement("p");
+  limitNote.textContent = limitDescription;
+  $("#dialog-content").appendChild(limitNote);
 }
 function showNewGame() {
   modal(
     '<span class="eyebrow">A NEW EXPEDITION</span><h2>Beyond the horizon.</h2><p>This replaces the saved expedition on this device.</p><label class="seed-label">Island seed<input id="seed" type="number" min="0" max="4294967295" value="' +
       Math.floor(Math.random() * 99999) +
-      '"></label><button class="primary action" id="start-new">Set sail →</button>',
+      '"></label><label class="seed-label">Island size<select id="map-size"><option value="17">Expedition · 17 × 17 · 40 rounds</option><option value="11">Quick skirmish · 11 × 11 · 30 rounds</option></select></label><button class="primary action" id="start-new">Set sail →</button>',
   );
   $("#start-new").onclick = () => {
     const n = Number($("#seed").value);
@@ -318,9 +326,9 @@ function showNewGame() {
       $("#seed").reportValidity();
       return;
     }
-    state = createGame(n);
+    state = createGame(n, Number($("#map-size").value));
     selectedUnit = 1;
-    selectedTile = 80;
+    selectedTile = state.units[0].tile;
     busy = false;
     save();
     render();

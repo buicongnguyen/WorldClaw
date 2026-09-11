@@ -1,5 +1,7 @@
 # Crown & Canopy — research, design and execution plan
 
+Revision note: the shipped default has since expanded to 17×17 with eight neutral villages and 40 rounds. The original 11×11 mode remains available. [Map and progression evaluation](PROGRESSION_EVALUATION.md) records measured comparisons, reviewed proposals and which changes are implemented; the initial scope below is retained as design history.
+
 Date: 2026-09-11. Scope: a complete small single-player browser strategy game, inspired by the clarity of Polytopia, with original geometry, names, rules and interface. No multiplayer or commercial-release claim.
 
 ## Reference study
