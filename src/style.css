@@ -5,8 +5,8 @@
   font-synthesis: none;
   --mint: #83dfb9;
   --gold: #efd092;
-  --line: #ffffff15;
-  --muted: #9bb6b5;
+  --line: #57787d;
+  --muted: #c1d3d3;
 }
 * {
   box-sizing: border-box;
@@ -32,7 +32,10 @@ button {
     transform 0.15s;
 }
 button:disabled {
-  opacity: 0.42;
+  opacity: 1;
+  color: #b5c4c7;
+  background: #283d45;
+  border-color: #4e666d;
   cursor: not-allowed;
 }
 button:not(:disabled):hover {
@@ -51,8 +54,12 @@ input:focus-visible {
 button {
   color: inherit;
   border: 1px solid var(--line);
-  background: #ffffff06;
+  background: #28535f;
   border-radius: 7px;
+  min-height: 44px;
+}
+[hidden] {
+  display: none !important;
 }
 h1,
 h2,
@@ -160,8 +167,8 @@ nav {
   align-items: center;
 }
 .icon-button {
-  width: 35px;
-  height: 35px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   font-size: 17px;
 }
@@ -170,15 +177,15 @@ nav {
   border-color: var(--gold);
 }
 .outline {
-  padding: 9px 14px;
-  font-size: 13px;
-  border-color: #d9e6d52d;
+  padding: 11px 14px;
+  font-size: 14px;
+  border-color: #73949c;
 }
 .game-layout {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
+  grid-template-columns: minmax(0, 1fr) 360px;
 }
 .board-shell {
   position: relative;
@@ -202,6 +209,10 @@ nav {
   top: 28px;
   z-index: 2;
   pointer-events: none;
+  background: #102e35ed;
+  border: 1px solid #61858c;
+  border-radius: 10px;
+  padding: 14px 18px;
 }
 .eyebrow {
   font-size: 10px;
@@ -250,7 +261,7 @@ nav {
   bottom: 55px;
   display: flex;
   flex-direction: column;
-  background: #112f35b8;
+  background: #143a44;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -258,8 +269,8 @@ nav {
 .camera-tools button {
   border: 0;
   border-radius: 0;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   font-size: 21px;
 }
 .camera-tools button + button {
@@ -296,7 +307,7 @@ nav {
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: #456166 transparent;
-  padding: 22px 22px 12px;
+  padding: 0 18px 18px;
 }
 .realm-card h2 {
   font-size: 17px;
@@ -310,9 +321,10 @@ nav {
   color: var(--mint);
 }
 .realm-card p {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--muted);
-  margin: 7px 0 0 39px;
+  margin: 10px 0 0;
+  line-height: 1.6;
 }
 .tag {
   font-size: 8px;
@@ -416,12 +428,13 @@ nav {
   border-radius: 4px;
 }
 .unit-status {
-  font-size: 11px;
-  color: #b5c6b7;
+  font-size: 14px;
+  color: #d2e2df;
   margin-top: 10px;
+  line-height: 1.5;
 }
 .selection-tip {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--muted);
   margin-top: 11px;
@@ -432,26 +445,31 @@ nav {
   margin-top: 15px;
 }
 .tile-info strong {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
 }
 .tile-info small {
   display: block;
-  font-size: 10px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 4px;
 }
 .action {
   width: 100%;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 12px 14px;
   margin-top: 9px;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  line-height: 1.4;
 }
 .action small {
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 400;
   color: var(--gold);
 }
 .action.primary,
@@ -462,23 +480,23 @@ nav {
   border: 0;
 }
 .action.danger {
-  background: #b46551;
+  background: #9b3d31;
   color: white;
 }
 .recruit-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 .recruit-grid .action {
   flex-direction: column;
   gap: 5px;
-  padding: 9px 2px;
-  font-size: 11px;
+  padding: 10px;
+  font-size: 14px;
 }
 .tile-picker {
   display: block;
-  font-size: 10px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 15px;
 }
@@ -490,14 +508,15 @@ nav {
   background: #163c43;
   border: 1px solid var(--line);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 14px;
   padding: 7px;
-  min-height: 32px;
+  min-height: 44px;
 }
 .combat-preview {
-  font-size: 12px;
-  color: #e8c4ae;
+  font-size: 14px;
+  color: #ffe0b5;
   margin-top: 12px;
+  line-height: 1.55;
 }
 .journal {
   border-top: 1px solid var(--line);
@@ -559,10 +578,10 @@ nav {
   gap: 8px;
   align-items: center;
   font-size: 15px;
-  border-color: transparent;
+  border-color: #73949c;
 }
 .utility-actions span {
-  font-size: 12px;
+  font-size: 14px;
 }
 .utility-actions kbd {
   font: 9px "DM Sans";
@@ -702,13 +721,14 @@ nav {
   }
 }
 dialog {
-  background: #15363c;
+  background: #112f39;
   color: #e8e9db;
   border: 1px solid #d6c38848;
   border-radius: 14px;
-  padding: 36px;
-  max-width: min(620px, 92vw);
-  max-height: 85dvh;
+  padding: 24px;
+  width: 720px;
+  max-width: calc(100vw - 24px);
+  max-height: 90dvh;
   box-shadow: 0 30px 120px #0007;
 }
 dialog::backdrop {
@@ -720,7 +740,11 @@ dialog::backdrop {
   float: right;
   top: 0;
   z-index: 2;
-  background: #15363c;
+  background: #356572;
+  color: white;
+  padding: 10px 14px;
+  font-size: 14px;
+  border-color: #8caeb5;
 }
 dialog h2 {
   font-size: 27px;
@@ -731,7 +755,7 @@ dialog h2 {
 dialog p {
   font-size: 14px;
   line-height: 1.8;
-  color: #afc2ba;
+  color: #d0dfdd;
 }
 dialog .eyebrow {
   padding-right: 25px;
@@ -799,7 +823,7 @@ dialog .eyebrow {
   font-size: 17px;
 }
 .tech-list p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
   margin-top: 5px;
 }
@@ -814,10 +838,10 @@ dialog .eyebrow {
   margin: 20px 0;
 }
 .help-list li {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.85;
   margin: 12px 0;
-  color: #afc2ba;
+  color: #d0dfdd;
 }
 .help-list b {
   color: #efe5c9;
@@ -871,10 +895,10 @@ dialog .eyebrow {
 }
 @media (min-width: 1550px) {
   .game-layout {
-    grid-template-columns: minmax(0, 1fr) 350px;
+    grid-template-columns: minmax(0, 1fr) 390px;
   }
   .sidebar {
-    padding: 30px;
+    padding: 0 22px 22px;
   }
   .map-heading {
     left: 45px;
@@ -910,10 +934,10 @@ dialog .eyebrow {
     font-size: 10px;
   }
   .game-layout {
-    grid-template-columns: minmax(0, 1fr) 270px;
+    grid-template-columns: minmax(0, 1fr) 320px;
   }
   .sidebar {
-    padding: 18px;
+    padding: 0 14px 18px;
   }
   .map-heading {
     left: 22px;
@@ -951,10 +975,11 @@ dialog .eyebrow {
     min-height: 100dvh;
   }
   .topbar {
-    height: 68px;
-    padding: 0 14px;
-    gap: 10px;
-    flex-wrap: nowrap;
+    height: auto;
+    padding: 10px 14px;
+    gap: 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .brand {
     font-size: 13px;
@@ -964,6 +989,9 @@ dialog .eyebrow {
   }
   .resources {
     gap: 10px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: space-between;
   }
   .resources > div {
     gap: 5px;
@@ -979,10 +1007,10 @@ dialog .eyebrow {
     gap: 6px;
   }
   .round small {
-    display: none;
+    display: block;
   }
   .round b span {
-    display: none;
+    display: inline;
   }
   .resources .gold {
     font-size: 18px;
@@ -994,12 +1022,12 @@ dialog .eyebrow {
     display: none;
   }
   .topbar .outline {
-    font-size: 10px;
+    font-size: 13px;
     padding: 8px;
   }
   .icon-button {
-    width: 29px;
-    height: 29px;
+    width: 44px;
+    height: 44px;
   }
   .game-layout {
     display: flex;
@@ -1011,19 +1039,20 @@ dialog .eyebrow {
     min-height: 390px;
   }
   .map-heading {
-    top: 18px;
-    left: 18px;
+    top: 12px;
+    left: 12px;
+    padding: 10px 12px;
   }
   .map-heading .eyebrow {
     font-size: 8px;
     letter-spacing: 2px;
   }
   .map-heading h1 {
-    font-size: 22px;
-    margin-top: 9px;
+    font-size: 18px;
+    margin-top: 0;
   }
   .map-heading p {
-    font-size: 10px;
+    display: none;
   }
   .map-compass {
     right: 17px;
@@ -1039,10 +1068,8 @@ dialog .eyebrow {
     border-left: 0;
     border-top: 1px solid var(--line);
     overflow: visible;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    padding: 20px 18px 100px;
+    display: block;
+    padding: 0 16px 100px;
   }
   .realm-card {
     grid-column: 1;
@@ -1057,7 +1084,7 @@ dialog .eyebrow {
   }
   .realm-card p {
     margin-left: 0;
-    font-size: 10px;
+    font-size: 14px;
   }
   .realm-stats {
     margin-top: 18px;
@@ -1082,11 +1109,11 @@ dialog .eyebrow {
     margin-top: 12px;
   }
   .objective p {
-    font-size: 10px;
+    font-size: 14px;
     line-height: 1.65;
   }
   .eyebrow {
-    font-size: 8px;
+    font-size: 11px;
     letter-spacing: 1.5px;
   }
   .inspector {
@@ -1114,8 +1141,7 @@ dialog .eyebrow {
     box-shadow: 0 -5px 25px #08242e66;
   }
   .turn-identity {
-    min-width: 0;
-    flex: 1;
+    display: none;
   }
   .turn-orb {
     display: none;
@@ -1129,13 +1155,17 @@ dialog .eyebrow {
   }
   .utility-actions {
     margin: 0;
+    flex: 1;
+    gap: 6px;
   }
   .utility-actions button {
-    padding: 10px 8px;
-    font-size: 19px;
+    padding: 8px;
+    font-size: 0;
+    gap: 0;
   }
   .utility-actions span {
-    display: none;
+    display: inline;
+    font-size: 12px;
   }
   .end-turn {
     min-width: 107px;
@@ -1153,7 +1183,7 @@ dialog .eyebrow {
     font-size: 7px;
   }
   dialog {
-    padding: 28px 22px;
+    padding: 18px;
   }
   dialog h2 {
     font-size: 23px;
@@ -1177,7 +1207,7 @@ dialog .eyebrow {
   }
   .tile-picker select {
     font-size: 13px;
-    min-height: 38px;
+    min-height: 44px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1189,7 +1219,7 @@ dialog .eyebrow {
 .action-reason {
   display: block;
   color: #afc6c9;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
   margin: 3px 0 9px;
 }
@@ -1332,4 +1362,186 @@ dialog .eyebrow {
   padding: 3px 6px;
   border: 1px solid #c7ab6966;
   border-radius: 4px;
+}
+
+/* Command-first interface: immediate orders, optional supporting information. */
+.sidebar {
+  scroll-padding-top: 126px;
+}
+.sidebar-menu {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  padding: 14px 0;
+  background: #123139;
+  border-bottom: 1px solid var(--line);
+}
+.panel-switch,
+.menu-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.panel-switch button,
+.menu-shortcuts button {
+  padding: 10px 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.panel-switch button[aria-pressed="true"] {
+  background: #e8cd92;
+  color: #1a3035;
+  border-color: #ffe4a9;
+  box-shadow: inset 0 -3px #fff0cf;
+}
+.menu-shortcuts {
+  margin-top: 8px;
+}
+.menu-shortcuts button {
+  font-weight: 400;
+}
+.info-group {
+  margin-top: 12px;
+  border: 1px solid #587982;
+  border-radius: 8px;
+  background: #193e48;
+  padding: 0 12px;
+}
+.info-group summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 13px 0;
+  font-size: 14px;
+  color: #e4efed;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.info-group[open] {
+  padding-bottom: 12px;
+}
+summary:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+.action-heading {
+  color: #f4dfab;
+  font-size: 15px;
+  margin: 18px 0 6px;
+}
+.action.primary small {
+  color: #173c32;
+}
+.action:disabled small {
+  color: #bdc9cb;
+}
+.action:disabled {
+  background: #283d45;
+  color: #b5c4c7;
+  border: 1px solid #4e666d;
+}
+.map-orders {
+  position: absolute;
+  bottom: 52px;
+  left: 20px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: calc(100% - 106px);
+  border: 1px solid #91b5bc;
+  background: #0d2934f5;
+  border-radius: 10px;
+  box-shadow: 0 4px 18px #001c;
+  padding: 12px 14px;
+}
+.map-orders strong,
+.map-orders span {
+  display: block;
+}
+.map-orders strong {
+  font-size: 15px;
+  color: #f5e3b9;
+}
+.map-orders span {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #d3e4e4;
+  margin-top: 4px;
+}
+#map-action {
+  padding: 12px 16px;
+  font-size: 14px;
+}
+#map-action.danger {
+  background: #9b3d31;
+  color: white;
+}
+#toast {
+  bottom: 162px;
+  font-size: 14px;
+}
+.inspector > .eyebrow {
+  font-size: 11px;
+  color: #c7d9d9;
+}
+.health {
+  font-size: 13px;
+  background: #214e49;
+}
+.council-options {
+  align-items: start;
+}
+.council-option small,
+#story-resources {
+  font-size: 13px;
+}
+.council-option button:not(:disabled) {
+  background: var(--mint);
+  color: #13362d;
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  .sidebar-menu {
+    position: static;
+  }
+  .sidebar {
+    scroll-padding-top: 10px;
+  }
+  .map-heading .eyebrow {
+    display: none;
+  }
+  .camera-tools {
+    right: 12px;
+    bottom: 52px;
+  }
+  .map-orders {
+    left: 12px;
+    max-width: calc(100% - 78px);
+    padding: 10px;
+  }
+  .map-orders strong {
+    font-size: 14px;
+  }
+  .map-orders span {
+    font-size: 12px;
+  }
+  .bottom-bar {
+    padding: 10px;
+    gap: 6px;
+  }
+  .end-turn {
+    min-width: 94px;
+    padding: 12px 10px;
+  }
+  .end-turn span {
+    display: none;
+  }
+  .utility-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .utility-actions button {
+    justify-content: center;
+  }
 }

@@ -22,7 +22,9 @@ Visual upgrade: the 19-model environment/legacy pack plus 65 new Blender army pr
 
 ## Play
 
-Select your scout, select a mint-outlined tile, then choose **Move** in the inspector. Neutral villages and beacons transfer immediately; enemy cities require an occupier to survive the defender's turn. Select an empty owned city to recruit. **End turn** lets the AI act and collects your next income.
+Select your scout, then **double-click a mint-outlined tile to move** (double-tap also works). Or select a destination once and press the on-map **Move here** button. Single clicks only inspect; attacks always need explicit confirmation. Camera drags and pinches never issue orders. Neutral villages and beacons transfer immediately; enemy cities require an occupier to survive the defender's turn. Select an empty owned city to recruit. **End turn** lets the AI act and collects your next income.
+
+**Commands** shows immediate unit and tile actions first; **Realm overview** holds faction, story and victory information. Equipment, veteran requirements and unavailable recruits expand on demand. Story/council and army/style menus remain one click away. Larger contrast-separated controls and labeled phone buttons replace the former dense sidebar. See the [UI interaction review](docs/UI_CLARITY_REVIEW.md).
 
 Research Agriculture → Irrigation → Commerce, Archery → Training → Tactics, or Masonry → Engineering → Logistics. Trailcraft improves exploration. Build two farms in a city's territory, then choose Market or Barracks at level II; level III adds Walls or a Workshop. Workshops recruit sentinels. Combat and captures earn XP; train veterans at friendly barracks. Unavailable actions explain their requirements.
 

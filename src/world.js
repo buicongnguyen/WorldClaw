@@ -7,6 +7,7 @@ import { climateAt } from "./climate.js";
 import { BUILDINGS } from "./progression.js";
 import { siteAt, beaconActive } from "./chronicle.js";
 import { SIZE, mapSize, UNITS, reachable, targets } from "./game.js";
+import { createMapInput } from "./map-input.js";
 
 const colors = {
   grass: [0x7d8a58, 0x869160, 0x73834f],
@@ -18,6 +19,7 @@ const colors = {
   fog: [0x526569, 0x596c70],
 };
 export function createWorld(host, onPick) {
+  const mapInput = createMapInput();
   let factionColors = [0x75e4c0, 0xed9375];
   let boardSize = SIZE,
     center = (SIZE - 1) / 2;
@@ -45,7 +47,7 @@ export function createWorld(host, onPick) {
   renderer.domElement.dataset.art = "loading";
   renderer.domElement.setAttribute(
     "aria-label",
-    "Interactive 3D island. Select tiles using the board or the tile navigator.",
+    "Interactive 3D island. Click a tile to inspect; double-click a reachable tile to move. Or use the tile navigator and Move here button.",
   );
   renderer.domElement.tabIndex = 0;
   const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 100);
@@ -94,6 +96,7 @@ export function createWorld(host, onPick) {
   const labels = document.createElement("div");
   labels.className = "world-labels";
   host.appendChild(labels);
+  const markerMaterials = new Map();
   const materials = new Map(),
     geometries = new Map();
   const groundCanvas = document.createElement("canvas");
@@ -728,6 +731,7 @@ export function createWorld(host, onPick) {
       });
       sun.shadow.camera.updateProjectionMatrix();
     }
+    if (state !== s) mapInput.reset();
     state = s;
     selected = selectedTile;
     const signature = JSON.stringify([
@@ -749,7 +753,7 @@ export function createWorld(host, onPick) {
       const ring = mesh(
         overlays,
         "Ring",
-        [radius - 0.035, radius, 4],
+        [radius - 0.065, radius, 4],
         c,
         t.x - center,
         t.terrain === "mountain" ? 1.3 : 0.34,
@@ -757,7 +761,13 @@ export function createWorld(host, onPick) {
       );
       ring.rotation.x = -Math.PI / 2;
       ring.rotation.z = Math.PI / 4;
-      ring.material = material(c);
+      if (!markerMaterials.has(c))
+        markerMaterials.set(
+          c,
+          new THREE.MeshBasicMaterial({ color: c, depthTest: false }),
+        );
+      ring.material = markerMaterials.get(c);
+      ring.renderOrder = 10;
       ring.castShadow = false;
     };
     if (selectedTile !== null && s.explored[0].includes(selectedTile))
@@ -785,18 +795,15 @@ export function createWorld(host, onPick) {
   resize();
   const raycaster = new THREE.Raycaster(),
     pointer = new THREE.Vector2();
-  let down = null;
-  renderer.domElement.addEventListener("pointerdown", (e) => {
-    down = { x: e.clientX, y: e.clientY, time: performance.now() };
+  renderer.domElement.addEventListener("pointerdown", (e) => mapInput.down(e));
+  renderer.domElement.addEventListener("pointermove", (e) => mapInput.move(e));
+  renderer.domElement.addEventListener("pointercancel", (e) =>
+    mapInput.cancel(e),
+  );
+  renderer.domElement.addEventListener("wheel", () => mapInput.reset(), {
+    passive: true,
   });
   renderer.domElement.addEventListener("pointerup", (e) => {
-    if (
-      !down ||
-      Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6 ||
-      performance.now() - down.time > 600 ||
-      e.button !== 0
-    )
-      return;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set(
       ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -804,8 +811,8 @@ export function createWorld(host, onPick) {
     );
     raycaster.setFromCamera(pointer, camera);
     const hits = raycaster.intersectObjects(tileMeshes, false);
-    if (hits.length) onPick(hits[0].object.userData.tile);
-    down = null;
+    const tap = mapInput.up(e, hits[0]?.object.userData.tile);
+    if (tap) onPick(tap.tile, { quickMove: tap.activate });
   });
   const position = new THREE.Vector3();
   renderer.setAnimationLoop(() => {
@@ -847,6 +854,7 @@ export function createWorld(host, onPick) {
     }
   });
   function resetCamera() {
+    mapInput.reset();
     needsFrame = true;
     controls.target.set(0, 0, 0);
     camera.position.set(14, 16, 18);
@@ -890,6 +898,7 @@ export function createWorld(host, onPick) {
       batches: renderedBoard.children.length,
     }),
     focus: () => {
+      mapInput.reset();
       if (selected === null || !state?.explored[0].includes(selected)) return;
       const t = state.tiles[selected],
         target = new THREE.Vector3(t.x - center, 0, t.z - center);
@@ -903,6 +912,7 @@ export function createWorld(host, onPick) {
     update,
     resetCamera,
     zoom: (n) => {
+      mapInput.reset();
       needsFrame = true;
       camera.zoom = THREE.MathUtils.clamp(camera.zoom * n, 0.7, 5);
       camera.updateProjectionMatrix();

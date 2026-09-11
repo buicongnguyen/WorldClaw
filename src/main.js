@@ -105,27 +105,27 @@ document.querySelector("#app").innerHTML = `
       <div id="world"></div>
       <div class="map-compass" aria-hidden="true"><span>N</span>✧</div>
       <div class="camera-tools"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="focus-camera" aria-label="Inspect selected tile" title="Close-up of the selected tile">◎</button><button id="reset-camera" aria-label="Reset camera">⌖</button></div>
+      <div class="map-orders" aria-live="polite"><div><strong id="map-order-title">Select a unit</strong><span id="map-order-hint">Click to inspect · Double-click to move</span></div><button id="map-action" class="primary" hidden>Move here</button></div>
       <div class="map-caption"><span class="mint-dot"></span> <span id="explored">CHARTING THE UNKNOWN</span><span class="gesture">Drag to orbit · Scroll to zoom</span></div>
       <div id="toast" role="status" aria-live="polite"></div>
     </section>
     <aside class="sidebar">
+      <div class="sidebar-menu"><div class="panel-switch" role="group" aria-label="Information panel"><button id="panel-command" aria-pressed="true" aria-controls="inspector">Commands</button><button id="panel-realm" aria-pressed="false" aria-controls="realm-overview">Realm overview</button></div><div class="menu-shortcuts"><button id="council">Story & council</button><button id="armory">Army & styles</button></div></div>
+      <section class="inspector" id="inspector" aria-live="polite" aria-label="Selected unit and tile commands"></section>
+      <div id="realm-overview" hidden>
       <section class="realm-card"><div class="eyebrow">YOUR REALM <span class="tag">PLAYER 01</span></div><h2><span class="realm-emblem">♧</span> Canopy Covenant</h2><p>From a single seed, a kingdom.</p><div class="realm-stats"><div><b id="cities">1</b><small>CITIES</small></div><div><b id="army">1</b><small>UNITS</small></div><div><b id="ready">1</b><small>READY</small></div></div></section>
       <section class="objective"><div class="eyebrow">PATH TO VICTORY <span>◇</span></div><h3>Awaken the beacons</h3><p>Hold beacons to earn ${renownGoal(state)} renown.<br>Or capture the rival capital.</p><div class="progress-label"><span>Canopy</span><b id="renown">0 / 12</b></div><div class="progress-track"><i id="renown-bar"></i></div><div class="progress-label rival"><span>Ember Court</span><b id="enemy-renown">0 / 12</b></div><div class="progress-track enemy"><i id="enemy-bar"></i></div></section>
-      <section class="inspector" id="inspector" aria-live="polite"></section>
       <section class="journal"><div class="eyebrow">FIELD NOTES</div><p id="log"></p></section>
+      </div>
     </aside>
   </main>
   <footer class="bottom-bar"><div class="turn-identity"><span class="turn-orb">♧</span><div><b id="turn-label">Your turn</b><small id="turn-hint">Choose where your story grows.</small></div></div><div class="utility-actions"><button id="next-unit" aria-label="Next unit">♙ <span>Next unit</span><kbd>N</kbd></button><button id="research" aria-label="Research">⌘ <span>Research</span></button><button id="export" aria-label="Export GLB" title="Export explored 3D world for Blender">↗ <span>Export GLB</span></button></div><button class="end-turn" id="end-turn">End turn <span>→</span></button></footer>
   <dialog id="dialog"><div id="dialog-content"></div></dialog>
 `;
 const $ = (selector) => document.querySelector(selector);
-$(".realm-card").insertAdjacentHTML(
-  "beforeend",
-  '<button id="armory" class="outline armory-button">Army & styles</button>',
-);
 $(".objective").insertAdjacentHTML(
   "beforebegin",
-  '<section class="chronicle-card"><div class="eyebrow">THE BROKEN MERIDIAN</div><p id="story-summary"></p><div id="story-resources"></div><button class="outline" id="council">Story & council</button></section>',
+  '<section class="chronicle-card"><div class="eyebrow">THE BROKEN MERIDIAN</div><p id="story-summary"></p><div id="story-resources"></div></section>',
 );
 let world;
 try {
@@ -177,7 +177,15 @@ function save() {
       "Autosave unavailable — keep this tab open to retain your expedition.";
   }
 }
-function pick(tile) {
+function showPanel(name) {
+  const commands = name === "command";
+  $("#inspector").hidden = !commands;
+  $("#realm-overview").hidden = commands;
+  $("#panel-command").setAttribute("aria-pressed", String(commands));
+  $("#panel-realm").setAttribute("aria-pressed", String(!commands));
+  $(".sidebar").scrollTop = 0;
+}
+function pick(tile, { quickMove = false } = {}) {
   if (busy || state.active !== 0 || state.winner !== null) return;
   if (!state.explored[0].includes(tile)) {
     notify("Uncharted territory. Move a scout closer to reveal it.");
@@ -186,6 +194,21 @@ function pick(tile) {
   selectedTile = tile;
   const u = unitAt(state, tile);
   if (u?.owner === 0) selectedUnit = u.id;
+  showPanel("command");
+  if (quickMove && !u) {
+    const selected = state.units.find(
+      (v) => v.id === selectedUnit && v.owner === 0,
+    );
+    if (selected && reachable(state, selected).includes(tile)) {
+      act({ type: "move", unit: selected.id, tile });
+      return;
+    }
+    notify(
+      selected?.moved || selected?.attacked
+        ? "This unit has spent its movement. Choose another unit or end your turn."
+        : "That tile is not reachable this turn. Choose a mint-outlined tile.",
+    );
+  }
   render();
 }
 function act(action) {
@@ -196,13 +219,19 @@ function act(action) {
     return;
   }
   state = result.state;
+  if (action.type === "move") {
+    selectedTile = action.tile;
+    notify(
+      `Moved to ${state.tiles[action.tile].x + 1}, ${state.tiles[action.tile].z + 1}. Movement spent; attack if a target is in range.`,
+    );
+  }
   beep();
   save();
   render();
   if (state.winner !== null) showResult();
 }
 function actionButton(label, action, disabled = false, klass = "") {
-  return `<button class="action ${klass}" data-command='${JSON.stringify(action)}' ${disabled ? "disabled" : ""}>${label}</button>`;
+  return `<button class="action ${klass}" data-command='${JSON.stringify(action)}' ${disabled || busy || state.active !== 0 || state.winner !== null ? "disabled" : ""}>${label}</button>`;
 }
 function gatedButton(label, action, reason) {
   return (
@@ -210,7 +239,18 @@ function gatedButton(label, action, reason) {
     (reason ? `<small class="action-reason">${escape(reason)}</small>` : "")
   );
 }
+let renderedSelection = "";
 function render() {
+  const selectionKey = `${selectedUnit}:${selectedTile}`;
+  const folds = new Map(
+    selectionKey === renderedSelection
+      ? [...$("#inspector").querySelectorAll("details[data-fold]")].map((d) => [
+          d.dataset.fold,
+          d.open,
+        ])
+      : [],
+  );
+  renderedSelection = selectionKey;
   const p = state.players[0];
   $(".objective > p").innerHTML =
     `${state.chronicle ? "Restore and hold" : "Hold"} beacons to earn ${renownGoal(state)} renown.<br>Or capture the rival capital.`;
@@ -268,7 +308,7 @@ function render() {
     saveNotice ||
     (busy
       ? "The rival court weighs its next move."
-      : "Choose where your story grows.");
+      : "Click to inspect · Double-click a mint tile to move.");
   $("#end-turn").disabled = busy || state.active !== 0 || state.winner !== null;
   $("#next-unit").disabled = busy || state.winner !== null;
   $("#research").disabled = busy || state.winner !== null;
@@ -285,9 +325,46 @@ function render() {
     mountain: "Limestone peaks",
     water: "Coastal waters",
   };
-  let html = `<div class="eyebrow">${u ? "COMMAND YOUR PEOPLE" : "EXPLORE THE ISLAND"}<span>${known ? `${t.x + 1} · ${t.z + 1}` : ""}</span></div>`;
+  const canMove = known && u && reachable(state, u).includes(t.id);
+  const canAttack =
+    tileUnit?.owner === 1 &&
+    u &&
+    targets(state, u).some((v) => v.id === tileUnit.id);
+  const locked = busy || state.active !== 0 || state.winner !== null;
+  $("#map-order-title").textContent = locked
+    ? state.winner !== null
+      ? "Expedition complete"
+      : "Rival is planning…"
+    : canMove
+      ? `Move ${UNITS[u.type].name} to ${t.x + 1}, ${t.z + 1}`
+      : canAttack
+        ? `${UNITS[u.type].name} → ${UNITS[tileUnit.type].name}`
+        : u
+          ? `${UNITS[u.type].name} · ${u.hp}/${unitStats(state, u).hp} HP`
+          : "Select one of your units";
+  $("#map-order-hint").textContent = locked
+    ? "Commands are unavailable."
+    : canMove
+      ? "Double-click this tile or press Move here."
+      : canAttack
+        ? `Deal ${combatPreview(state, u, tileUnit).damage} · receive ${combatPreview(state, u, tileUnit).retaliation}. Confirm to attack.`
+        : u?.attacked
+          ? "Actions spent · choose Next unit or End turn."
+          : u?.moved
+            ? u.type === "gunship"
+              ? "Movement spent · cannons ready next turn."
+              : "Movement spent · select a rival to check attack range."
+            : "Click to inspect · Double-click a mint tile to move.";
+  $("#map-action").hidden = locked || !(canMove || canAttack);
+  $("#map-action").textContent = canAttack ? "Confirm attack" : "Move here →";
+  $("#map-action").classList.toggle("danger", !!canAttack);
+  $("#map-action").onclick = () => {
+    if (canAttack) act({ type: "attack", unit: u.id, target: tileUnit.id });
+    else if (canMove) act({ type: "move", unit: u.id, tile: t.id });
+  };
+  let html = `<div class="eyebrow">${u ? "SELECTED UNIT" : "SELECTED TILE"}<span>${known ? `${t.x + 1}, ${t.z + 1}` : ""}</span></div>`;
   if (u) {
-    html += `<h3>♙ ${UNITS[u.type].name} <span class="health">${u.hp}/${unitStats(state, u).hp} HP</span></h3><p class="unit-status">${u.attacked ? "Actions spent · ready next turn" : u.moved ? "Moved · can still attack" : "Ready to move and attack"}</p><p class="unit-status">Attack ${unitStats(state, u).attack} · Range ${unitStats(state, u).range} · Movement ${unitStats(state, u).move}</p>`;
+    html += `<h3>♙ ${UNITS[u.type].name} <span class="health">${u.hp}/${unitStats(state, u).hp} HP</span></h3><p class="unit-status">${u.attacked ? "Actions spent · ready next turn" : u.moved ? (u.type === "gunship" ? "Moved · cannons ready next turn" : "Moved · can still attack") : "Ready to move and attack"}</p><p class="unit-status">Attack ${unitStats(state, u).attack} · Range ${unitStats(state, u).range} · Movement ${unitStats(state, u).move}</p>`;
     if (u.guarded)
       html +=
         '<p class="combat-preview">Guarding · +1 protection until your next turn.</p>';
@@ -310,7 +387,7 @@ function render() {
           restorationReason(state, u),
         );
     }
-    if (known && reachable(state, u).includes(t.id))
+    if (canMove)
       html += actionButton(
         `Move to ${terrainName[t.terrain]} →`,
         { type: "move", unit: u.id, tile: t.id },
@@ -331,39 +408,48 @@ function render() {
           "danger",
         );
     }
-    if (
-      !u.moved &&
-      !u.attacked &&
-      u.hp < unitStats(state, u).hp &&
-      !state.tiles[u.tile].occupation
-    )
-      html += actionButton(
-        `Rest · recover ${healAmount(state, u)} HP`,
-        { type: "heal", unit: u.id },
-        busy,
-      );
-    if (!u.moved && !u.attacked)
-      html += actionButton(
-        "Guard · +1 protection until next turn",
-        { type: "guard", unit: u.id },
-        busy,
-      );
-    html +=
-      '<p class="selection-tip">Select a mint outline to move. Select a rival to preview combat.</p>';
-    html += `<p class="unit-status">${UNITS[u.type].equipment}</p><p class="selection-tip">${appearanceFor(state, u).style} livery · Cosmetic only</p>`;
-    html +=
-      UNITS[u.type].domain === "water"
-        ? `<p class="unit-status">${u.xp} XP · Naval crew. Cannot capture land cities or train at land barracks.</p>`
-        : `<p class="unit-status">${u.xp} XP · Veteran ${u.rank}/2${u.promotion ? ` · ${u.promotion}` : ""}. Combat survival +1 XP; defeat an enemy +${factionId(state, u.owner) === "ember" ? 4 : 3}; capture +2.</p>`;
-    if (u.rank < 2 && UNITS[u.type].domain !== "water")
-      for (const choice of u.promotion
-        ? [u.promotion]
-        : ["mobility", "resilience"])
-        html += gatedButton(
-          `Train ${choice}<small>✦ ${u.rank ? 7 : 4} · +1 attack, ${choice === "mobility" ? "+1 movement" : "+2 maximum HP"}</small>`,
-          { type: "promote", unit: u.id, choice },
-          promotionReason(state, u, choice),
+    if (u.tile === t?.id) {
+      if (
+        !u.moved &&
+        !u.attacked &&
+        u.hp < unitStats(state, u).hp &&
+        !state.tiles[u.tile].occupation
+      )
+        html += actionButton(
+          `Rest · recover ${healAmount(state, u)} HP`,
+          { type: "heal", unit: u.id },
+          busy,
         );
+      if (!u.moved && !u.attacked)
+        html += actionButton(
+          "Guard · +1 protection until next turn",
+          { type: "guard", unit: u.id },
+          busy,
+        );
+      html +=
+        '<p class="selection-tip">Mint outlines = reachable. Click to inspect; double-click to move. Attacks need confirmation.</p>';
+      html +=
+        '<details class="info-group" data-fold="equipment"><summary>Equipment & experience</summary>';
+      html += `<p class="unit-status">${UNITS[u.type].equipment}</p><p class="selection-tip">${appearanceFor(state, u).style} livery · Cosmetic only</p>`;
+      html +=
+        UNITS[u.type].domain === "water"
+          ? `<p class="unit-status">${u.xp} XP · Naval crew. Cannot capture land cities or train at land barracks.</p>`
+          : `<p class="unit-status">${u.xp} XP · Veteran ${u.rank}/2${u.promotion ? ` · ${u.promotion}` : ""}. Combat survival +1 XP; defeat an enemy +${factionId(state, u.owner) === "ember" ? 4 : 3}; capture +2.</p>`;
+      html += "</details>";
+      if (u.rank < 2 && UNITS[u.type].domain !== "water") {
+        const trainable = !promotionReason(state, u, u.promotion ?? "mobility");
+        html += `<details class="info-group" data-fold="training" ${trainable ? "open" : ""}><summary>Veteran training${trainable ? " · Ready" : " · Requirements"}</summary>`;
+        for (const choice of u.promotion
+          ? [u.promotion]
+          : ["mobility", "resilience"])
+          html += gatedButton(
+            `Train ${choice}<small>✦ ${u.rank ? 7 : 4} · +1 attack, ${choice === "mobility" ? "+1 movement" : "+2 maximum HP"}</small>`,
+            { type: "promote", unit: u.id, choice },
+            promotionReason(state, u, choice),
+          );
+        html += "</details>";
+      }
+    }
   }
   if (known) {
     const discovery = siteAt(state, t.id);
@@ -382,11 +468,19 @@ function render() {
       if (t.city) {
         if (state.players[0].tech.includes("caravans"))
           html += `<p class="selection-tip">${tradeCities(state, 0).has(t.id) ? "Trade route active · +2 income" : "Trade inactive · connect another friendly city with roads; keep the route free of enemies."}</p>`;
-        html += `<p class="unit-status">${t.city.specialization ?? "No specialization"} · ${t.city.fortification ?? "No stronghold upgrade"}</p><div class="recruit-grid">`;
-        for (const [kind, def] of Object.entries(UNITS))
-          html += `<div>${gatedButton(`${def.domain === "water" ? "Launch " : ""}${def.name}<small>✦ ${def.cost}</small>`, { type: "recruit", tile: t.id, kind }, recruitReason(state, t, kind))}</div>`;
-        html +=
-          '</div><p class="selection-tip">Ships launch on the nearest free water tile within 3 tiles. Move a launched ship to free its harbor. Infantry need the city tile empty.</p>';
+        html += `<p class="unit-status">${t.city.specialization ?? "No specialization"} · ${t.city.fortification ?? "No stronghold upgrade"}</p><h4 class="action-heading">Recruit & launch</h4>`;
+        const roster = Object.entries(UNITS).map(([kind, def]) => ({
+          kind,
+          def,
+          reason: recruitReason(state, t, kind),
+        }));
+        const recruits = (entries) =>
+          `<div class="recruit-grid">${entries.map(({ kind, def, reason }) => `<div>${gatedButton(`${def.domain === "water" ? "Launch " : ""}${def.name}<small>✦ ${def.cost}</small>`, { type: "recruit", tile: t.id, kind }, reason)}</div>`).join("")}</div>`;
+        html += recruits(roster.filter((v) => !v.reason));
+        if (!roster.some((v) => !v.reason))
+          html +=
+            '<p class="selection-tip">No recruits available here. Check requirements below.</p>';
+        html += `<details class="info-group" data-fold="recruit"><summary>Unavailable units & requirements (${roster.filter((v) => v.reason).length})</summary>${recruits(roster.filter((v) => v.reason))}<p class="selection-tip">Ships launch on free water within 3 tiles. Infantry need the city tile empty.</p></details><h4 class="action-heading">City development</h4>`;
         for (const [kind, def] of Object.entries(SPECIALIZATIONS)) {
           const retrofit =
             t.city.level >= def.level &&
@@ -423,6 +517,9 @@ function render() {
     })
     .join("")}</select></label>`;
   $("#inspector").innerHTML = html;
+  for (const d of $("#inspector").querySelectorAll("details[data-fold]"))
+    if (folds.has(d.dataset.fold) && !(d.dataset.fold === "training" && d.open))
+      d.open = folds.get(d.dataset.fold);
   $("#tile-picker").addEventListener("change", (e) =>
     pick(Number(e.target.value)),
   );
@@ -435,7 +532,12 @@ function render() {
 }
 function modal(content) {
   $("#dialog-content").innerHTML =
-    `<button class="dialog-close icon-button" aria-label="Close dialog">×</button>${content}`;
+    `<button class="dialog-close" aria-label="Close dialog">Close ×</button>${content}`;
+  const heading = $("#dialog-content h2");
+  if (heading) {
+    heading.id = "dialog-title";
+    $("#dialog").setAttribute("aria-labelledby", "dialog-title");
+  }
   if (!$("#dialog").open) $("#dialog").showModal();
   $(".dialog-close").onclick = () => $("#dialog").close();
 }
@@ -464,14 +566,14 @@ function showCouncil() {
     ]
       .filter(Boolean)
       .join(" + ");
-  modal(`<span class="eyebrow">A CHRONICLE OF THE VERDANT REACH</span><h2>${STORY_TITLE}</h2><p>${PROLOGUE}</p><blockquote class="story-quote">${TRIBE_STORIES[factionId(state, 0)]}</blockquote>
-    <p><b>Mara Venn, archivist:</b> “Read the agreements before you wake the machine.”<br><b>Captain Ilyan, quartermaster:</b> “And keep our people fed while we learn.”</p>
+  modal(`<span class="eyebrow">STORY & COUNCIL</span><h2>${STORY_TITLE}</h2><details class="info-group"><summary>The story & your advisers</summary><p>${PROLOGUE}</p><blockquote class="story-quote">${TRIBE_STORIES[factionId(state, 0)]}</blockquote>
+    <p><b>Mara Venn, archivist:</b> “Read the agreements before you wake the machine.”<br><b>Captain Ilyan, quartermaster:</b> “And keep our people fed while we learn.”</p></details>
     ${
       !c
         ? '<p class="combat-preview">This save uses skirmish rules. Start a new island with Broken Meridian story mode enabled to play these chapters.</p>'
         : `
     <p class="story-ledger">◇ ${c.players[0].fragments} fragment${c.players[0].fragments === 1 ? "" : "s"} · ✧ ${c.players[0].insight} research insight</p>
-    <p class="selection-tip">Recover sites with an unused unit. Wreck salvage requires Sailing for every tribe. Restore owned beacons for 4 stars + 1 fragment after Masonry. Only restored beacons score. Insight discounts each research purchase by up to 4 stars, never below 1.</p>
+    <details class="info-group"><summary>Restoration rules & research insight</summary><p>Recover sites with an unused unit. Wreck salvage requires Sailing for every tribe. Restore owned beacons for 4 stars + 1 fragment after Masonry. Only restored beacons score. Insight discounts each research purchase by up to 4 stars, never below 1.</p></details>
     <p class="selection-tip">Your realm: improved tiles ${progress.improved} · cities ${progress.cities} (developed ${progress.developed}) · recoveries ${progress.sites} (wrecks ${progress.wrecks}) · naval units ${progress.navy} · restored beacons held ${progress.beacons}.</p>
     ${CHAPTERS.map(
       (title, i) =>
@@ -549,6 +651,8 @@ function showHelp() {
     `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your starting army.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles (four for Canopy scouts) and charted land stays visible.</li><li><b>Grow your realm.</b> Neutral villages transfer immediately. Enemy cities require occupation through one defender turn; leaving or dying cancels capture, and contested city territory produces no income. Select an empty owned city to recruit; newly recruited units act next turn. Research Agriculture, build two farms, then specialize your city as a Market or Barracks. Engineering unlocks Walls or a Workshop at level III.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water tribes can cross water (2 movement; 1 with Oceanways). Ice tribes unlock water crossing through Frozen Paths. Mountain tribes cross peaks. Any tribe can research Trailcraft → Sailing → Navigation for water access. Marines removes shoreline attack penalties.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown after both factions finish a round. Reach at least ${renownGoal(state)} and lead in renown to win; equal totals continue. Alternatively, complete occupation of the rival capital. After ${roundLimit(state)} rounds, renown, then city count, then surviving HP decide the winner.</li><li><b>Develop your veterans.</b> Combat and captures earn XP. At a friendly Barracks, an unused unit can train at 3 XP (Training, 4 stars) and 6 XP (Tactics, 7 stars). Pick mobility or resilience; training consumes the turn and preserves damage percentage. Logistics unlocks roads; both endpoints must be friendly roads for half-cost movement.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
   );
   const limitNote = document.createElement("p");
+  $(".help-list").children[0].innerHTML =
+    "<b>Move your army.</b> Click a unit, then double-click a mint-outlined tile to move there. Or click a destination once and press Move here. On touchscreens, use the same explicit button or double-tap. A single click only inspects. Enemy tiles show a combat preview; attacking always requires confirmation. Drag to orbit; dragging and pinching never issue orders.";
   limitNote.textContent = limitDescription;
   $("#dialog-content").appendChild(limitNote);
   const beaconHelp = $(".help-list").children[3];
@@ -604,6 +708,7 @@ function showNewGame() {
     );
     selectedUnit = 1;
     selectedTile = state.units[0].tile;
+    showPanel("command");
     busy = false;
     save();
     render();
@@ -656,8 +761,11 @@ function nextUnit() {
     units[(units.findIndex((u) => u.id === selectedUnit) + 1) % units.length];
   selectedUnit = u.id;
   selectedTile = u.tile;
+  showPanel("command");
   render();
 }
+$("#panel-command").onclick = () => showPanel("command");
+$("#panel-realm").onclick = () => showPanel("realm");
 $("#end-turn").onclick = endTurn;
 $("#next-unit").onclick = nextUnit;
 $("#research").onclick = showResearch;
@@ -706,7 +814,9 @@ document.addEventListener("keydown", (e) => {
     $("#dialog").open ||
     busy ||
     state.winner !== null ||
-    ["INPUT", "SELECT", "BUTTON", "A"].includes(document.activeElement?.tagName)
+    ["INPUT", "SELECT", "BUTTON", "A", "SUMMARY"].includes(
+      document.activeElement?.tagName,
+    )
   )
     return;
   if (e.key.toLowerCase() === "n") {
