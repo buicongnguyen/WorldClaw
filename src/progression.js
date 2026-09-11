@@ -1,5 +1,6 @@
 // Shared registries and derived rules: the UI and command engine use the same gates.
 import { factionId } from "./factions.js";
+import { climateAt } from "./climate.js";
 export const TECHS = {
   dunewarfare: {
     name: "Dune Warfare",
@@ -143,10 +144,147 @@ export const TECHS = {
     name: "Trailcraft",
     cost: 8,
     branch: "Exploration",
-    description: "All units gain one movement point.",
+    description:
+      "Units gain one movement point. Starting scout escorts already have this training (3 movement).",
+  },
+  marksmanship: {
+    name: "Marksmanship",
+    requires: "archery",
+    cost: 10,
+    branch: "Ranged combat",
+    description:
+      "Archers gain +1 attack at distance 2 or more, scaled by remaining health.",
+  },
+  longbows: {
+    name: "Longbows",
+    requires: "marksmanship",
+    cost: 16,
+    branch: "Ranged combat",
+    description:
+      "Archers can shoot 3 tiles before moving; after moving their range stays 2.",
+  },
+  dueling: {
+    name: "Dueling",
+    requires: "training",
+    cost: 10,
+    branch: "Melee combat",
+    description: "Melee units gain +1 attack.",
+  },
+  shielddrill: {
+    name: "Shield Drill",
+    requires: "dueling",
+    cost: 14,
+    branch: "Melee combat",
+    description:
+      "Guardians and sentinels resist 1 extra damage from melee attacks.",
+  },
+  sailing: {
+    name: "Sailing",
+    requires: "trails",
+    cost: 10,
+    branch: "Seafaring",
+    description: "All units may enter water at 2 movement per tile.",
+  },
+  navigation: {
+    name: "Navigation",
+    requires: "sailing",
+    cost: 14,
+    branch: "Seafaring",
+    description: "Water movement costs 1.",
+  },
+  marines: {
+    name: "Marines",
+    requires: "navigation",
+    cost: 14,
+    branch: "Seafaring",
+    description:
+      "Remove the -1 damage penalty when attacking across a shoreline in either direction.",
+  },
+  barter: {
+    name: "Barter",
+    requires: "agriculture",
+    cost: 8,
+    branch: "Trade",
+    description: "Markets produce +1 income.",
+  },
+  caravans: {
+    name: "Caravans",
+    requires: "barter",
+    requiresAll: ["logistics"],
+    cost: 12,
+    branch: "Trade",
+    description:
+      "Each city linked to another city by friendly roads earns +2 income. Enemy units and occupation interrupt routes.",
+  },
+  desertfarming: {
+    name: "Desert Farming",
+    requires: "agriculture",
+    cost: 8,
+    branch: "Climate farming",
+    description: "Build Oasis I on desert meadows: 5 stars, +1 income.",
+  },
+  oasisengineering: {
+    name: "Oasis Engineering",
+    requires: "desertfarming",
+    cost: 12,
+    branch: "Climate farming",
+    description: "Upgrade an oasis for 6 stars to +2 base income.",
+  },
+  icefarming: {
+    name: "Ice Farming",
+    requires: "agriculture",
+    cost: 8,
+    branch: "Climate farming",
+    description: "Build Ice Farm I on frozen meadows: 5 stars, +1 income.",
+  },
+  greenhouses: {
+    name: "Greenhouses",
+    requires: "icefarming",
+    cost: 12,
+    branch: "Climate farming",
+    description:
+      "Upgrade an ice farm to a heated greenhouse for 6 stars: +2 base income.",
   },
 };
 export const BUILDINGS = {
+  oasis: {
+    name: "Oasis I",
+    cost: 5,
+    income: 1,
+    requires: "desertfarming",
+    terrain: "grass",
+    climate: "desert",
+    model: "farm",
+  },
+  oasis2: {
+    name: "Oasis II",
+    cost: 6,
+    income: 2,
+    requires: "oasisengineering",
+    terrain: "grass",
+    climate: "desert",
+    from: ["oasis"],
+    model: "farm2",
+  },
+  icefarm: {
+    name: "Ice Farm I",
+    cost: 5,
+    income: 1,
+    requires: "icefarming",
+    terrain: "grass",
+    climate: "ice",
+    model: "farm",
+  },
+  greenhouse: {
+    name: "Heated Greenhouse",
+    cost: 6,
+    income: 2,
+    requires: "greenhouses",
+    terrain: "grass",
+    climate: "ice",
+    from: ["icefarm"],
+    model: "farm2",
+  },
   estate: { name: "Estate", cost: 4, income: 1 }, // Existing estates remain productive.
   farm: {
     name: "Farm I",
@@ -161,6 +299,7 @@ export const BUILDINGS = {
     income: 2,
     requires: "irrigation",
     terrain: "grass",
+    from: ["farm", "estate"],
   },
   lumber: {
     name: "Lumber camp",
@@ -197,6 +336,24 @@ export const SPECIALIZATIONS = {
   },
 };
 export const has = (s, owner, tech) => s.players[owner].tech.includes(tech);
+export const prerequisites = (key) =>
+  [TECHS[key]?.requires, ...(TECHS[key]?.requiresAll ?? [])].filter(Boolean);
+export const researchCost = (s, key, owner = s.active) =>
+  TECHS[key].cost -
+  ((factionId(s, owner) === "desert" &&
+    ["desertfarming", "oasisengineering"].includes(key)) ||
+  (factionId(s, owner) === "ice" && ["icefarming", "greenhouses"].includes(key))
+    ? 2
+    : 0);
+export function nextBuilding(s, t) {
+  if (t.building === "oasis") return "oasis2";
+  if (t.building === "icefarm") return "greenhouse";
+  if (["farm", "estate"].includes(t.building)) return "farm2";
+  if (t.terrain === "forest") return "lumber";
+  return { desert: "oasis", ice: "icefarm", temperate: "farm" }[
+    climateAt(s, t)
+  ];
+}
 export const buildingCost = (s, kind, owner = s.active) =>
   BUILDINGS[kind].cost -
   (kind === "farm" && factionId(s, owner) === "tide" ? 1 : 0);
@@ -211,9 +368,11 @@ export function researchReason(s, key) {
   if (def.faction && def.faction !== factionId(s, s.active))
     return "Exclusive to another faction.";
   if (has(s, s.active, key)) return "Already learned.";
-  if (def.requires && !has(s, s.active, def.requires))
-    return `Requires ${TECHS[def.requires].name}.`;
-  return s.players[s.active].stars < def.cost ? `Needs ${def.cost} stars.` : "";
+  const missing = prerequisites(key).filter((k) => !has(s, s.active, k));
+  if (missing.length)
+    return `Requires ${missing.map((k) => TECHS[k].name).join(" + ")}.`;
+  const cost = researchCost(s, key);
+  return s.players[s.active].stars < cost ? `Needs ${cost} stars.` : "";
 }
 export function developmentReason(s, t, type, kind) {
   const p = s.players[s.active];
@@ -264,10 +423,13 @@ export function developmentReason(s, t, type, kind) {
       return "Choose a compatible farm or lumber camp.";
     if (!has(s, s.active, def.requires))
       return `Requires ${TECHS[def.requires].name}.`;
-    if (
-      kind === "farm2" ? !["farm", "estate"].includes(t.building) : t.improved
-    )
+    if (def.from ? !def.from.includes(t.building) : t.improved)
       return "This building cannot be developed further.";
+    if (
+      t.terrain === "grass" &&
+      climateAt(s, t) !== (def.climate ?? "temperate")
+    )
+      return `Requires a ${def.climate ?? "temperate"} meadow and its matching farming branch.`;
     cost = buildingCost(s, kind);
   }
   return p.stars < cost ? `Needs ${cost} stars.` : "";

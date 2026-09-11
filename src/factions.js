@@ -6,7 +6,8 @@ export const FACTION_TYPES = {
     color: 0xe3bb60,
     unit: "scout",
     tech: "trails",
-    trait: "Rest restores +2 HP on meadows.",
+    trait:
+      "Rest restores +2 HP on meadows. Desert farming research costs 2 fewer stars per skill.",
     doctrine: "dunewarfare",
     style: "Mobile open-ground warfare",
   },
@@ -16,7 +17,8 @@ export const FACTION_TYPES = {
     color: 0xd8edf0,
     unit: "guardian",
     tech: "masonry",
-    trait: "Units gain +1 protection on meadows.",
+    trait:
+      "Units gain +1 protection on meadows. Ice farming research costs 2 fewer stars per skill.",
     doctrine: "frozenpaths",
     style: "Defend, then cross frozen seas",
   },

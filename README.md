@@ -1,10 +1,12 @@
 # Crown & Canopy
 
-A playable 3D island strategy game: explore the unknown, grow settlements, research new abilities, and outmaneuver the Ember Court. Win with at least 12 beacon renown and a lead after a full round, or complete occupation of the rival capital.
+A playable 3D island strategy game: explore the unknown, grow settlements, research new abilities, and outmaneuver a rival tribe. New games require 24 beacon renown and a lead after a full round, or completed occupation of the rival capital. Older saves retain their 12-renown target.
 
 New expeditions use **17×17 islands**, eight neutral villages and a 40-round limit. **New island** also offers the original 11×11 / 30-round quick skirmish. Existing saves keep their original map. Connected research, specialized buildings, veterans and occupation are now implemented; see [progression rules and review](docs/PROGRESSION_RELEASE.md).
 
 **[Play on GitHub Pages](https://buicongnguyen.github.io/WorldClaw/)**
+
+**Branching skill map:** 23 shared skills plus nine tribe masteries connect ranged/melee combat, sailing/navigation/Marines, interruptible road trade, and two-tier desert/ice farming. New islands offer visible climate regions and trained scout escorts for slower starting armies. See the [detailed design, review and measured balance results](docs/SKILL_TREE_PLAN.md).
 
 Choose from **nine factions** in New island, including Desert, Ice, Fire, Water and Mountain tribes. Each has starting technology, a permanent trait, and an exclusive advanced research branch. Water armies can cross seas; Mountain armies can cross peaks; Ice armies unlock water crossing through research. You can also choose the AI faction. See [faction rules and save compatibility](docs/FACTIONS.md). Older saves retain their existing identities and rules.
 

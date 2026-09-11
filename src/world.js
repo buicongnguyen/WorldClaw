@@ -3,10 +3,14 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { loadArt, rebuildBatches } from "./art.js";
 import { armyColor } from "./factions.js";
+import { climateAt } from "./climate.js";
+import { BUILDINGS } from "./progression.js";
 import { SIZE, mapSize, UNITS, reachable, targets } from "./game.js";
 
 const colors = {
   grass: [0x7d8a58, 0x869160, 0x73834f],
+  desert: [0xc5a768, 0xd3b57a, 0xbfa067],
+  ice: [0xb7d6db, 0xc9e1e4, 0xa9cbd4],
   forest: [0x576943, 0x637448],
   water: [0x3c6b71, 0x436f74],
   mountain: [0x8d8b76],
@@ -229,7 +233,9 @@ export function createWorld(host, onPick) {
       g.name = `Tile_${t.x}_${t.z}_${terrain}`;
       g.position.set(t.x - center, 0, t.z - center);
       board.add(g);
-      const palette = colors[terrain],
+      const climate = climateAt(s, t);
+      const palette =
+          colors[known && climate !== "temperate" ? climate : terrain],
         color = palette[(t.id * 7 + s.seed) % palette.length];
       const h = terrain === "water" ? -0.05 : 0.16;
       const tile = mesh(
@@ -312,12 +318,25 @@ export function createWorld(host, onPick) {
       if (t.improved && art) {
         art.add(
           g,
-          t.building === "estate" ? "farm" : t.building,
+          BUILDINGS[t.building]?.model ??
+            (t.building === "estate" ? "farm" : t.building),
           0,
           0.32,
           0,
           1,
         );
+        if (t.building === "greenhouse" || t.building === "icefarm")
+          mesh(g, "Box", [0.24, 0.22, 0.28], 0xb6e3ef, 0.22, 0.51, 0.2);
+        if (t.building === "oasis" || t.building === "oasis2")
+          mesh(
+            g,
+            "Cylinder",
+            [0.13, 0.14, 0.03, 16],
+            0x4c9cbb,
+            -0.2,
+            0.35,
+            0.22,
+          );
       } else if (t.improved) {
         for (let j = 0; j < 4; j++)
           mesh(
@@ -619,6 +638,7 @@ export function createWorld(host, onPick) {
       s.units,
       s.explored[0],
       s.players.map((p) => p.faction),
+      s.climates,
     ]);
     if (signature !== lastSignature) {
       rebuild(s);
@@ -748,6 +768,7 @@ export function createWorld(host, onPick) {
           state.units,
           state.explored[0],
           state.players.map((p) => p.faction),
+          state.climates,
         ]);
       }
       return true;

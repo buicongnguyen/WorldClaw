@@ -746,6 +746,50 @@ dialog .eyebrow {
   padding: 19px 0;
   border-top: 1px solid var(--line);
 }
+.skill-branch {
+  margin: 24px 0;
+  border-left: 2px solid #607d73;
+  padding-left: 14px;
+}
+.skill-branch > h3 {
+  color: var(--gold);
+  font-size: 20px;
+}
+.skill-node {
+  scroll-margin-top: 20px;
+}
+.skill-node.learned {
+  border-left: 3px solid var(--mint);
+  padding-left: 8px;
+}
+.skill-node.available {
+  background: #284940;
+  padding-right: 8px;
+}
+.skill-parents a {
+  color: #aad8c5;
+  text-underline-offset: 3px;
+}
+.skill-legend {
+  font-size: 12px;
+}
+.climate-choice {
+  display: block;
+  margin: 20px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 520px) {
+  .skill-branch {
+    padding-left: 8px;
+  }
+  .skill-node .tech-icon {
+    display: none;
+  }
+  .skill-node {
+    gap: 8px;
+  }
+}
 .tech-icon {
   color: var(--gold);
   font-size: 35px;

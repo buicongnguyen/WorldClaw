@@ -7,7 +7,7 @@ import {
   unitAt,
   UNITS,
   TECHS,
-  GOAL,
+  renownGoal,
   reachable,
   targets,
   combatPreview,
@@ -16,6 +16,7 @@ import {
   roundLimit,
   unitStats,
   tileIncome,
+  tradeCities,
   recruitReason,
   researchReason,
   developmentReason,
@@ -32,7 +33,9 @@ import {
   factionId,
   factionName,
 } from "./factions.js";
-import { SPECIALIZATIONS } from "./progression.js";
+import { SPECIALIZATIONS, nextBuilding } from "./progression.js";
+import { climateAt } from "./climate.js";
+import { skillMap } from "./skill-map.js";
 import { createWorld } from "./world.js";
 
 const SAVE_KEY = "crown-canopy-v1";
@@ -45,7 +48,10 @@ const escape = (value) =>
       ],
   );
 let saveNotice = "",
-  state = createGame(417, 17, ["canopy", "ember"]),
+  state = createGame(417, 17, ["canopy", "ember"], {
+    climates: true,
+    balancedStart: true,
+  }),
   selectedTile = state.units[0].tile,
   selectedUnit = 1,
   busy = false,
@@ -87,7 +93,7 @@ document.querySelector("#app").innerHTML = `
     </section>
     <aside class="sidebar">
       <section class="realm-card"><div class="eyebrow">YOUR REALM <span class="tag">PLAYER 01</span></div><h2><span class="realm-emblem">♧</span> Canopy Covenant</h2><p>From a single seed, a kingdom.</p><div class="realm-stats"><div><b id="cities">1</b><small>CITIES</small></div><div><b id="army">1</b><small>UNITS</small></div><div><b id="ready">1</b><small>READY</small></div></div></section>
-      <section class="objective"><div class="eyebrow">PATH TO VICTORY <span>◇</span></div><h3>Awaken the beacons</h3><p>Hold beacons to earn ${GOAL} renown.<br>Or capture the rival capital.</p><div class="progress-label"><span>Canopy</span><b id="renown">0 / 12</b></div><div class="progress-track"><i id="renown-bar"></i></div><div class="progress-label rival"><span>Ember Court</span><b id="enemy-renown">0 / 12</b></div><div class="progress-track enemy"><i id="enemy-bar"></i></div></section>
+      <section class="objective"><div class="eyebrow">PATH TO VICTORY <span>◇</span></div><h3>Awaken the beacons</h3><p>Hold beacons to earn ${renownGoal(state)} renown.<br>Or capture the rival capital.</p><div class="progress-label"><span>Canopy</span><b id="renown">0 / 12</b></div><div class="progress-track"><i id="renown-bar"></i></div><div class="progress-label rival"><span>Ember Court</span><b id="enemy-renown">0 / 12</b></div><div class="progress-track enemy"><i id="enemy-bar"></i></div></section>
       <section class="inspector" id="inspector" aria-live="polite"></section>
       <section class="journal"><div class="eyebrow">FIELD NOTES</div><p id="log"></p></section>
     </aside>
@@ -181,6 +187,8 @@ function gatedButton(label, action, reason) {
 }
 function render() {
   const p = state.players[0];
+  $(".objective > p").innerHTML =
+    `Hold beacons to earn ${renownGoal(state)} renown.<br>Or capture the rival capital.`;
   const identity = faction(state, 0),
     rival = faction(state, 1);
   $(".realm-card h2").textContent =
@@ -202,11 +210,13 @@ function render() {
   $("#ready").textContent = state.units.filter(
     (u) => u.owner === 0 && !u.attacked,
   ).length;
-  $("#renown").textContent = `${p.renown} / ${GOAL}`;
-  $("#enemy-renown").textContent = `${state.players[1].renown} / ${GOAL}`;
-  $("#renown-bar").style.width = `${Math.min(100, (p.renown / GOAL) * 100)}%`;
+  $("#renown").textContent = `${p.renown} / ${renownGoal(state)}`;
+  $("#enemy-renown").textContent =
+    `${state.players[1].renown} / ${renownGoal(state)}`;
+  $("#renown-bar").style.width =
+    `${Math.min(100, (p.renown / renownGoal(state)) * 100)}%`;
   $("#enemy-bar").style.width =
-    `${Math.min(100, (state.players[1].renown / GOAL) * 100)}%`;
+    `${Math.min(100, (state.players[1].renown / renownGoal(state)) * 100)}%`;
   $("#explored").textContent =
     `${Math.round((state.explored[0].length / state.tiles.length) * 100)}% CHARTED · ${mapSize(state)}×${mapSize(state)} · SEED ${state.seed}`;
   $("#turn-label").textContent =
@@ -238,7 +248,7 @@ function render() {
   };
   let html = `<div class="eyebrow">${u ? "COMMAND YOUR PEOPLE" : "EXPLORE THE ISLAND"}<span>${known ? `${t.x + 1} · ${t.z + 1}` : ""}</span></div>`;
   if (u) {
-    html += `<h3>♙ ${UNITS[u.type].name} <span class="health">${u.hp}/${unitStats(state, u).hp} HP</span></h3><p class="unit-status">${u.attacked ? "Actions spent · ready next turn" : u.moved ? "Moved · can still attack" : "Ready to move and attack"}</p><p class="unit-status">Attack ${unitStats(state, u).attack} · Range ${UNITS[u.type].range} · Movement ${unitStats(state, u).move}</p>`;
+    html += `<h3>♙ ${UNITS[u.type].name} <span class="health">${u.hp}/${unitStats(state, u).hp} HP</span></h3><p class="unit-status">${u.attacked ? "Actions spent · ready next turn" : u.moved ? "Moved · can still attack" : "Ready to move and attack"}</p><p class="unit-status">Attack ${unitStats(state, u).attack} · Range ${unitStats(state, u).range} · Movement ${unitStats(state, u).move}</p>`;
     if (known && reachable(state, u).includes(t.id))
       html += actionButton(
         `Move to ${terrainName[t.terrain]} →`,
@@ -252,7 +262,7 @@ function render() {
     ) {
       const hit = combatPreview(state, u, tileUnit);
       html +=
-        `<p class="combat-preview">Deal <b>${hit.damage}</b> · receive <b>${hit.retaliation}</b>${hit.lethal ? " · defeats enemy" : ""}</p>` +
+        `<p class="combat-preview">Deal <b>${hit.damage}</b> · receive <b>${hit.retaliation}</b>${hit.lethal ? " · defeats enemy" : ""}${hit.shorePenalty ? " · shoreline penalty −1" : ""}</p>` +
         actionButton(
           "Attack enemy",
           { type: "attack", unit: u.id, target: tileUnit.id },
@@ -285,6 +295,7 @@ function render() {
         );
   }
   if (known) {
+    html += `<p class="selection-tip">Climate: ${climateAt(state, t)}</p>`;
     html += `<div class="tile-info"><strong>${escape(t.city?.name ?? (t.beacon ? "Ancient beacon" : terrainName[t.terrain]))}</strong><small>${t.owner === null ? "Unclaimed" : factionName(state, t.owner)}${t.city ? ` · Level ${t.city.level}` : t.improved ? ` · ${BUILDINGS[t.building].name}` : ""}</small></div>`;
     if (t.occupation)
       html += `<p class="combat-preview">⚑ ${factionName(state, t.occupation.owner)} is occupying this city. Capture completes after ${factionName(state, t.owner)}'s turn. Remove the occupier to restore income.</p>`;
@@ -293,6 +304,8 @@ function render() {
     if (t.owner === 0) {
       html += `<p class="unit-status">Tile income: +${tileIncome(state, t)} / turn${t.road ? " · Road" : ""}${t.building ? ` · ${BUILDINGS[t.building].name}` : ""}</p>`;
       if (t.city) {
+        if (state.players[0].tech.includes("caravans"))
+          html += `<p class="selection-tip">${tradeCities(state, 0).has(t.id) ? "Trade route active · +2 income" : "Trade inactive · connect another friendly city with roads; keep the route free of enemies."}</p>`;
         html += `<p class="unit-status">${t.city.specialization ?? "No specialization"} · ${t.city.fortification ?? "No stronghold upgrade"}</p><div class="recruit-grid">`;
         for (const [kind, def] of Object.entries(UNITS))
           html += `<div>${gatedButton(`${def.name}<small>✦ ${def.cost}</small>`, { type: "recruit", tile: t.id, kind }, recruitReason(state, t, kind))}</div>`;
@@ -310,13 +323,8 @@ function render() {
           );
         }
       } else if (!t.beacon && ["grass", "forest"].includes(t.terrain)) {
-        const kind =
-          t.building === "farm" || t.building === "estate"
-            ? "farm2"
-            : t.terrain === "forest"
-              ? "lumber"
-              : "farm";
-        if (!t.improved || kind === "farm2")
+        const kind = nextBuilding(state, t);
+        if (!t.improved || BUILDINGS[kind].from?.includes(t.building))
           html += gatedButton(
             `Build ${BUILDINGS[kind].name}<small>✦ ${buildingCost(state, kind, 0)} · +${BUILDINGS[kind].income} base income</small>`,
             { type: "improve", tile: t.id, kind },
@@ -356,17 +364,7 @@ function modal(content) {
 }
 function showResearch() {
   modal(
-    `<span class="eyebrow">THE COUNCIL OF KNOWLEDGE</span><h2>Ideas become empires.</h2><p>Spend stars now. Open new possibilities for every turn ahead.</p><div class="tech-list">${Object.entries(
-      TECHS,
-    )
-      .filter(
-        ([, tech]) => !tech.faction || tech.faction === factionId(state, 0),
-      )
-      .map(
-        ([key, tech]) =>
-          `<article><span class="tech-icon">${tech.branch === "Military" ? "➶" : tech.branch === "Economy" ? "♧" : "♜"}</span><div><small>${tech.branch}${tech.requires ? ` · ${TECHS[tech.requires].name} →` : " · Foundation"}</small><h3>${tech.name}</h3><p>${tech.description}</p><small class="action-reason">${researchReason(state, key)}</small></div><button data-tech="${key}" ${researchReason(state, key) || state.active !== 0 || state.winner !== null ? "disabled" : ""}>${state.players[0].tech.includes(key) ? "Learned" : `✦ ${tech.cost}`}</button></article>`,
-      )
-      .join("")}</div>`,
+    `<span class="eyebrow">THE COUNCIL OF KNOWLEDGE</span><h2>Ideas become empires.</h2><p>Choose a branch: military reach, close combat, seafaring, trade or climate farming.</p>${!state.climates ? '<p class="selection-tip">This saved map is temperate. Start a new island with climate regions to use desert and ice farms.</p>' : ""}${skillMap(state)}`,
   );
   document.querySelectorAll("[data-tech]").forEach(
     (b) =>
@@ -379,7 +377,7 @@ function showResearch() {
 function showHelp() {
   const limitDescription = `This ${mapSize(state)}×${mapSize(state)} island lasts at most ${roundLimit(state)} rounds.`;
   modal(
-    `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your starting army.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles (four for Canopy scouts) and charted land stays visible.</li><li><b>Grow your realm.</b> Neutral villages transfer immediately. Enemy cities require occupation through one defender turn; leaving or dying cancels capture, and contested city territory produces no income. Select an empty owned city to recruit; newly recruited units act next turn. Research Agriculture, build two farms, then specialize your city as a Market or Barracks. Engineering unlocks Walls or a Workshop at level III.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water tribes can cross water (2 movement; 1 with Oceanways). Ice tribes unlock water crossing through Frozen Paths. Mountain tribes cross peaks. Other armies cannot cross these terrains.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown after both factions finish a round. Reach at least 12 and lead in renown to win; equal totals continue. Alternatively, complete occupation of the rival capital. After ${roundLimit(state)} rounds, renown, then city count, then surviving HP decide the winner.</li><li><b>Develop your veterans.</b> Combat and captures earn XP. At a friendly Barracks, an unused unit can train at 3 XP (Training, 4 stars) and 6 XP (Tactics, 7 stars). Pick mobility or resilience; training consumes the turn and preserves damage percentage. Logistics unlocks roads; both endpoints must be friendly roads for half-cost movement.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
+    `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your starting army.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles (four for Canopy scouts) and charted land stays visible.</li><li><b>Grow your realm.</b> Neutral villages transfer immediately. Enemy cities require occupation through one defender turn; leaving or dying cancels capture, and contested city territory produces no income. Select an empty owned city to recruit; newly recruited units act next turn. Research Agriculture, build two farms, then specialize your city as a Market or Barracks. Engineering unlocks Walls or a Workshop at level III.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water tribes can cross water (2 movement; 1 with Oceanways). Ice tribes unlock water crossing through Frozen Paths. Mountain tribes cross peaks. Any tribe can research Trailcraft → Sailing → Navigation for water access. Marines removes shoreline attack penalties.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown after both factions finish a round. Reach at least ${renownGoal(state)} and lead in renown to win; equal totals continue. Alternatively, complete occupation of the rival capital. After ${roundLimit(state)} rounds, renown, then city count, then surviving HP decide the winner.</li><li><b>Develop your veterans.</b> Combat and captures earn XP. At a friendly Barracks, an unused unit can train at 3 XP (Training, 4 stars) and 6 XP (Tactics, 7 stars). Pick mobility or resilience; training consumes the turn and preserves damage percentage. Logistics unlocks roads; both endpoints must be friendly roads for half-cost movement.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
   );
   const limitNote = document.createElement("p");
   limitNote.textContent = limitDescription;
@@ -400,8 +398,13 @@ function showNewGame() {
     },
   ).join(
     "",
-  )}</div></fieldset><label class="seed-label">Rival faction<select id="rival-faction">${PLAYABLE_FACTIONS.map((key) => `<option value="${key}" ${key === "ember" ? "selected" : ""}>${FACTION_TYPES[key].name}</option>`).join("")}</select></label><p class="selection-tip">Same-faction matches are allowed; team colors remain distinct. Abilities apply to new islands only.</p>`;
+  )}</div></fieldset><label class="seed-label">Rival faction<select id="rival-faction">${PLAYABLE_FACTIONS.map((key) => `<option value="${key}" ${key === "ember" ? "selected" : ""}>${FACTION_TYPES[key].name}</option>`).join("")}</select></label><p class="selection-tip">Same-faction matches are allowed; team colors remain distinct. Abilities apply to new islands only. Guardian/archer-start tribes receive a scout escort for exploration. New games require 24 beacon renown to give research time to develop.</p>`;
   $("#start-new").before(choices);
+  const climateChoice = document.createElement("label");
+  climateChoice.className = "climate-choice";
+  climateChoice.innerHTML =
+    '<input id="climate-regions" type="checkbox" checked> Desert and ice regions (capital approaches stay temperate)';
+  $("#start-new").before(climateChoice);
   $("#start-new").onclick = () => {
     const n = Number($("#seed").value);
     if (!Number.isInteger(n) || n < 0 || n > 4294967295) {
@@ -409,10 +412,12 @@ function showNewGame() {
       $("#seed").reportValidity();
       return;
     }
-    state = createGame(n, Number($("#map-size").value), [
-      $("input[name=faction]:checked").value,
-      $("#rival-faction").value,
-    ]);
+    state = createGame(
+      n,
+      Number($("#map-size").value),
+      [$("input[name=faction]:checked").value, $("#rival-faction").value],
+      { climates: $("#climate-regions").checked, balancedStart: true },
+    );
     selectedUnit = 1;
     selectedTile = state.units[0].tile;
     busy = false;

@@ -1,6 +1,6 @@
 # Playable factions
 
-New island lets you choose either army independently. Matches still have two sides; nine factions are available, including mirror matches. These are original cultures using the existing Blender unit models with faction-colored cloth and banners, not separate sets of character models. Desert and Ice are tribe identities; dedicated sand/snow biomes are not implemented. Their land bonuses use existing meadows.
+New island lets you choose either army independently. Matches still have two sides; nine factions are available, including mirror matches. These are original cultures using the existing Blender unit models with faction-colored cloth and banners, not separate sets of character models. New islands now offer desert/ice climate regions with distinct farm branches. Existing meadow combat traits continue to apply to the underlying grass terrain; Desert/Ice tribes also receive a 2-star discount on each of their native farming skills. See [the branching skill plan and balance review](SKILL_TREE_PLAN.md).
 
 | New tribe           | Start               | Native ability                    | Exclusive research (12 stars)                                          |
 | ------------------- | ------------------- | --------------------------------- | ---------------------------------------------------------------------- |
@@ -19,7 +19,7 @@ Traversal permissions apply per army, not globally. Crossing water does not crea
 | Stoneward Clans | Masonry / Guardian         | Rest +1 HP on uncontested friendly land | Engineering → Shieldwall: guardians/sentinels +1 protection on uncontested friendly land |
 | Tidewell League | Agriculture / Scout        | Farm I costs 3 instead of 4             | Irrigation → Commerce → Grand Granaries: Farm II and Markets each +1 income              |
 
-Each exclusive technology costs 12 stars, requires the indicated prerequisite, and cannot be learned by another faction. All ten common technologies remain available. Starting technology benefits apply immediately; starting stars remain 12. The AI follows faction-oriented research/recruitment priorities and uses the same rules as the player.
+Each exclusive technology costs 12 stars, requires the indicated prerequisite, and cannot be learned by another faction. All 23 shared technologies remain available, including Sailing for non-native water traversal. Starting technology benefits apply immediately; starting stars remain 12. Guardian/archer-start tribes now receive a scout escort with 3 movement on new islands (Trailcraft does not stack on escorts). New games use a 24-renown target. The AI follows faction-oriented research/recruitment priorities and uses the same rules as the player.
 
 ## Compatibility and checks
 

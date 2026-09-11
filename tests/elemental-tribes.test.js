@@ -75,9 +75,11 @@ test("Desert recovery and meadow scout attack stop outside their terrain", () =>
     u = s.units[0];
   s.tiles[u.tile].terrain = "grass";
   assert.equal(healAmount(s, u), 6);
-  const base = unitStats(s, u).attack;
   s = learn(s, "dunewarfare");
   u = s.units[0];
+  s.players[0].tech = s.players[0].tech.filter((k) => k !== "dunewarfare");
+  const base = unitStats(s, u).attack;
+  s.players[0].tech.push("dunewarfare");
   assert.equal(unitStats(s, u).attack, base + 1);
   s.tiles[u.tile].terrain = "forest";
   assert.equal(unitStats(s, u).attack, base);

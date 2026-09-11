@@ -10,7 +10,11 @@ import {
   assignTerritories,
   migrateSave,
   buildingCost,
+  prerequisites,
+  researchCost,
+  nextBuilding,
 } from "./progression.js";
+import { climateAt } from "./climate.js";
 import { FACTION_TYPES, faction, factionId, factionName } from "./factions.js";
 export {
   TECHS,
@@ -20,12 +24,16 @@ export {
   promotionReason,
   migrateSave,
   buildingCost,
+  prerequisites,
+  researchCost,
+  nextBuilding,
 } from "./progression.js";
 export const SIZE = 11;
 export const MAP_SIZES = [11, 17];
 export const mapSize = (s) => s.size ?? SIZE;
 export const roundLimit = (s) => (mapSize(s) === 17 ? 40 : 30);
 export const GOAL = 12;
+export const renownGoal = (s) => s.renownTarget ?? GOAL;
 export const FACTIONS = ["Canopy Covenant", "Ember Court"];
 export const UNITS = {
   scout: { name: "Scout", hp: 8, attack: 3, range: 1, move: 2, cost: 4 },
@@ -39,9 +47,13 @@ export function unitStats(s, u) {
   return {
     ...base,
     hp: base.hp + (u.promotion === "resilience" ? 2 * rank : 0),
+    range:
+      base.range +
+      Number(u.type === "archer" && has(s, u.owner, "longbows") && !u.moved),
     attack:
       base.attack +
       rank +
+      Number(base.range === 1 && has(s, u.owner, "dueling")) +
       (u.type === "archer" && has(s, u.owner, "firecraft") ? 1 : 0) +
       Number(
         factionId(s, u.owner) === "fire" &&
@@ -54,8 +66,7 @@ export function unitStats(s, u) {
           s.tiles[u.tile].terrain === "grass",
       ),
     move:
-      base.move +
-      (has(s, u.owner, "trails") ? 1 : 0) +
+      (u.escort ? 3 : base.move + (has(s, u.owner, "trails") ? 1 : 0)) +
       (u.promotion === "mobility" ? rank : 0),
   };
 }
@@ -77,7 +88,9 @@ export const canTraverse = (s, t, owner) =>
   !!t &&
   (passable(t) ||
     (t.terrain === "water" &&
-      (factionId(s, owner) === "water" || has(s, owner, "frozenpaths"))) ||
+      (factionId(s, owner) === "water" ||
+        has(s, owner, "frozenpaths") ||
+        has(s, owner, "sailing"))) ||
     (t.terrain === "mountain" && factionId(s, owner) === "mountain"));
 const clone = (s) => structuredClone(s);
 function random(seed) {
@@ -94,6 +107,7 @@ export function createGame(
   seed = 417,
   size = SIZE,
   factions = ["classic", "classic"],
+  options = {},
 ) {
   if (!MAP_SIZES.includes(size)) throw new Error("Unsupported island size");
   if (
@@ -108,6 +122,8 @@ export function createGame(
   const rng = random(seed);
   const s = {
     version: 3,
+    climates: options.climates === true,
+    renownTarget: options.balancedStart ? 24 : 12,
     size,
     seed: seed >>> 0,
     round: 1,
@@ -238,6 +254,24 @@ export function createGame(
     u.type = faction(s, u.owner).unit;
     u.hp = UNITS[u.type].hp;
   }
+  if (options.balancedStart)
+    for (const owner of [0, 1]) {
+      if (faction(s, owner).unit === "scout") continue;
+      const capital = s.tiles.find((t) => t.city?.capital === owner);
+      s.units.push({
+        id: s.nextId++,
+        tile: capital.id,
+        owner,
+        type: "scout",
+        hp: 8,
+        moved: false,
+        attacked: false,
+        xp: 0,
+        rank: 0,
+        promotion: null,
+        escort: true,
+      });
+    }
   reveal(s, 0);
   reveal(s, 1);
   return s;
@@ -269,17 +303,81 @@ function reveal(s, owner) {
   }
   s.explored[owner] = [...seen].sort((a, b) => a - b);
 }
-export function tileIncome(s, t) {
+export function tradeCities(s, owner) {
+  const result = new Set();
+  if (!has(s, owner, "caravans")) return result;
+  const legal = (t) =>
+    t.owner === owner &&
+    passable(t) &&
+    !contested(s, t) &&
+    (t.city || t.road) &&
+    !s.units.some((u) => u.tile === t.id && u.owner !== owner);
+  const visited = new Set();
+  for (const root of s.tiles.filter((t) => t.city && legal(t))) {
+    if (visited.has(root.id)) continue;
+    const queue = [root],
+      cities = [];
+    visited.add(root.id);
+    for (let i = 0; i < queue.length; i++) {
+      const t = queue[i];
+      if (t.city) cities.push(t.id);
+      for (const n of neighbors(s, t))
+        if (!visited.has(n.id) && legal(n)) {
+          visited.add(n.id);
+          queue.push(n);
+        }
+    }
+    if (cities.length > 1) for (const id of cities) result.add(id);
+  }
+  return result;
+}
+export function plannedTradeRoads(s, owner) {
+  const legal = (t) =>
+    t.owner === owner &&
+    passable(t) &&
+    !t.beacon &&
+    !contested(s, t) &&
+    !s.units.some((u) => u.tile === t.id && u.owner !== owner);
+  let best = [];
+  for (const root of s.tiles.filter((t) => t.city && legal(t))) {
+    const costs = new Map([[root.id, 0]]),
+      paths = new Map([[root.id, []]]),
+      queue = [root];
+    while (queue.length) {
+      queue.sort((a, b) => costs.get(a.id) - costs.get(b.id));
+      const t = queue.shift(),
+        path = paths.get(t.id);
+      if (t.city && t.id !== root.id && path.length) {
+        if (!best.length || path.length < best.length) best = path;
+        break;
+      }
+      for (const n of neighbors(s, t))
+        if (legal(n)) {
+          const needsRoad = !n.city && !n.road,
+            cost = costs.get(t.id) + Number(needsRoad);
+          if (cost < (costs.get(n.id) ?? Infinity)) {
+            costs.set(n.id, cost);
+            paths.set(n.id, needsRoad ? [...path, n.id] : path);
+            queue.push(n);
+          }
+        }
+    }
+  }
+  return best;
+}
+export function tileIncome(s, t, network) {
   if (t.owner === null || contested(s, t)) return 0;
   const market = t.city?.specialization === "market";
   if (t.city)
     return (
       t.city.level +
       2 +
+      ((network ?? tradeCities(s, t.owner)).has(t.id) ? 2 : 0) +
       (market
         ? 2 +
           Number(has(s, t.owner, "commerce")) +
-          Number(has(s, t.owner, "granaries"))
+          Number(has(s, t.owner, "granaries")) +
+          Number(has(s, t.owner, "barter"))
         : 0)
     );
   if (!t.improved) return 0;
@@ -297,11 +395,13 @@ export function tileIncome(s, t) {
     Number(t.building === "farm2" && has(s, t.owner, "granaries"))
   );
 }
-export const income = (s, owner) =>
-  s.tiles.reduce(
-    (sum, t) => sum + (t.owner === owner ? tileIncome(s, t) : 0),
+export const income = (s, owner) => {
+  const network = tradeCities(s, owner);
+  return s.tiles.reduce(
+    (sum, t) => sum + (t.owner === owner ? tileIncome(s, t, network) : 0),
     0,
   );
+};
 export function reachable(s, u) {
   if (!u || u.owner !== s.active || u.moved || u.attacked || s.winner !== null)
     return [];
@@ -329,6 +429,7 @@ export function reachable(s, u) {
           : t.terrain === "forest" ||
               (t.terrain === "water" &&
                 !has(s, u.owner, "oceanways") &&
+                !has(s, u.owner, "navigation") &&
                 !has(s, u.owner, "frozenpaths"))
             ? 2
             : 1);
@@ -355,10 +456,16 @@ export function healAmount(s, unit) {
     )
   );
 }
-function protection(s, unit) {
+function protection(s, unit, attacker) {
   const t = s.tiles[unit.tile];
   return (
     (t.terrain === "forest" ? 1 : 0) +
+    Number(
+      attacker &&
+        UNITS[attacker.type].range === 1 &&
+        ["guardian", "sentinel"].includes(unit.type) &&
+        has(s, unit.owner, "shielddrill"),
+    ) +
     Number(t.terrain === "grass" && factionId(s, unit.owner) === "ice") +
     Number(t.terrain === "water" && has(s, unit.owner, "oceanways")) +
     Number(t.terrain === "mountain" && has(s, unit.owner, "summitguard")) * 2 +
@@ -377,30 +484,53 @@ function protection(s, unit) {
     )
   );
 }
+export function shorePenalty(s, a, b) {
+  return Number(
+    (s.tiles[a.tile].terrain === "water") !==
+      (s.tiles[b.tile].terrain === "water") && !has(s, a.owner, "marines"),
+  );
+}
+function attackPower(s, a, b) {
+  return (
+    unitStats(s, a).attack +
+    Number(
+      a.type === "archer" &&
+        has(s, a.owner, "marksmanship") &&
+        distance(s.tiles[a.tile], s.tiles[b.tile]) >= 2,
+    )
+  );
+}
 export function combatPreview(s, attacker, defender) {
   const damage = Math.max(
     1,
     Math.ceil(
-      (unitStats(s, attacker).attack * attacker.hp) / unitStats(s, attacker).hp,
-    ) - protection(s, defender),
+      (attackPower(s, attacker, defender) * attacker.hp) /
+        unitStats(s, attacker).hp,
+    ) -
+      protection(s, defender, attacker) -
+      shorePenalty(s, attacker, defender),
   );
   const remaining = Math.max(0, defender.hp - damage);
   const retaliation =
     remaining > 0 &&
     distance(s.tiles[attacker.tile], s.tiles[defender.tile]) <=
-      UNITS[defender.type].range
+      unitStats(s, defender).range
       ? Math.max(
           1,
           Math.ceil(
-            (unitStats(s, { ...defender, hp: remaining }).attack * remaining) /
+            (attackPower(s, { ...defender, hp: remaining }, attacker) *
+              remaining) /
               unitStats(s, defender).hp,
-          ) - protection(s, attacker),
+          ) -
+            protection(s, attacker, defender) -
+            shorePenalty(s, defender, attacker),
         )
       : 0;
   return {
     damage: Math.min(damage, defender.hp),
     retaliation: Math.min(retaliation, attacker.hp),
     lethal: remaining === 0,
+    shorePenalty: shorePenalty(s, attacker, defender),
   };
 }
 export function targets(s, u) {
@@ -409,7 +539,7 @@ export function targets(s, u) {
     (v) =>
       v.owner !== u.owner &&
       s.explored[u.owner].includes(v.tile) &&
-      distance(s.tiles[u.tile], s.tiles[v.tile]) <= UNITS[u.type].range,
+      distance(s.tiles[u.tile], s.tiles[v.tile]) <= unitStats(s, u).range,
   );
 }
 function log(s, message) {
@@ -622,7 +752,7 @@ export function command(state, action) {
     const tech = Object.hasOwn(TECHS, action.tech) ? TECHS[action.tech] : null;
     const reason = researchReason(s, action.tech);
     if (reason) return bad(reason);
-    p.stars -= tech.cost;
+    p.stars -= researchCost(s, action.tech);
     p.tech.push(action.tech);
     log(s, `${factionName(s, s.active)} learned ${tech.name}.`);
   } else if (action.type === "end") {
@@ -637,7 +767,7 @@ export function command(state, action) {
           (t) => t.beacon && t.owner === owner,
         ).length;
       const [a, b] = s.players.map((p) => p.renown);
-      if (Math.max(a, b) >= GOAL && a !== b) {
+      if (Math.max(a, b) >= renownGoal(s) && a !== b) {
         const winner = a > b ? 0 : 1;
         finish(
           s,
@@ -701,18 +831,53 @@ export function aiTurn(state, owner = 1) {
       continue;
     }
     let enemies = targets(s, u).sort((a, b) => a.hp - b.hp);
+    // Ranged armies should keep a firing lane instead of accepting free melee retaliation.
+    if (
+      u.type === "archer" &&
+      enemies.some((v) => distance(s.tiles[u.tile], s.tiles[v.tile]) === 1)
+    ) {
+      const retreats = reachable(s, u)
+        .map((tile) => {
+          const candidate = { ...u, tile, moved: true };
+          const shots = targets(s, candidate).filter(
+            (v) => combatPreview(s, candidate, v).retaliation === 0,
+          );
+          const threatened = s.units.some(
+            (v) =>
+              v.owner !== owner &&
+              s.explored[owner].includes(v.tile) &&
+              distance(s.tiles[tile], s.tiles[v.tile]) <= unitStats(s, v).range,
+          );
+          return { tile, shots, threatened };
+        })
+        .filter((r) => r.shots.length && !r.threatened);
+      if (retreats.length) {
+        act({ type: "move", unit: id, tile: retreats[0].tile });
+        u = s.units.find((v) => v.id === id);
+        enemies = targets(s, u).sort((a, b) => a.hp - b.hp);
+      }
+    }
     if (u.hp <= 3 && !enemies.length) {
       act({ type: "heal", unit: id });
       continue;
     }
     if (!enemies.length) {
       const known = new Set(s.explored[owner]);
-      const goals = s.tiles.filter(
+      let goals = s.tiles.filter(
         (t) =>
           known.has(t.id) &&
           (t.city || t.beacon) &&
           (t.owner !== owner || t.occupation),
       );
+      const capital = s.tiles.find((t) => t.city?.capital === owner);
+      const threats = s.units.filter(
+        (v) =>
+          v.owner !== owner &&
+          known.has(v.tile) &&
+          distance(s.tiles[v.tile], capital) <= 3,
+      );
+      if (capital.owner === owner && threats.length && u.type !== "scout")
+        goals = threats.map((v) => s.tiles[v.tile]);
       const frontier = s.tiles.filter(
         (t) =>
           known.has(t.id) &&
@@ -771,6 +936,19 @@ export function aiTurn(state, owner = 1) {
   }
   // Reserve five stars for defense, buy one technology per turn, then develop.
   for (const tech of [
+    "trails",
+    "agriculture",
+    ...(s.round >= 5
+      ? s.units.some((u) => u.owner === owner && u.type === "archer")
+        ? ["marksmanship", "longbows"]
+        : ["archery", "training", "dueling"]
+      : []),
+    ...(s.tiles.some((t) => t.owner === owner && climateAt(s, t) === "desert")
+      ? ["agriculture", "desertfarming", "oasisengineering"]
+      : []),
+    ...(s.tiles.some((t) => t.owner === owner && climateAt(s, t) === "ice")
+      ? ["agriculture", "icefarming", "greenhouses"]
+      : []),
     ...(faction(s, owner).doctrine ? [faction(s, owner).doctrine] : []),
     ...({
       canopy: ["archery", "training"],
@@ -793,10 +971,19 @@ export function aiTurn(state, owner = 1) {
     "commerce",
     "tactics",
     "logistics",
+    ...(s.units.some((u) => u.owner === owner && u.type === "archer")
+      ? ["marksmanship", "longbows"]
+      : ["dueling", "shielddrill"]),
+    "barter",
+    "caravans",
+    "sailing",
+    "navigation",
+    "marines",
   ])
     if (
       !researchReason(s, tech) &&
-      s.players[owner].stars >= TECHS[tech].cost + 5
+      s.players[owner].stars >=
+        researchCost(s, tech) + (tech === "trails" ? 4 : 5)
     ) {
       act({ type: "research", tech });
       break;
@@ -812,7 +999,7 @@ export function aiTurn(state, owner = 1) {
     );
     if (city.city.level === 1) {
       for (const t of owned.filter((t) => !t.improved).slice(0, 2)) {
-        const kind = t.terrain === "forest" ? "lumber" : "farm";
+        const kind = nextBuilding(s, t);
         if (
           s.players[owner].stars >= 9 &&
           !developmentReason(s, t, "improve", kind)
@@ -853,7 +1040,13 @@ export function aiTurn(state, owner = 1) {
           city.city.fortification === "workshop" && has(s, owner, "engineering")
             ? "sentinel"
             : factionId(s, owner) === "ember"
-              ? "archer"
+              ? s.units.filter(
+                  (u) => u.owner === owner && u.type === "guardian",
+                ).length <
+                s.units.filter((u) => u.owner === owner && u.type === "archer")
+                  .length
+                ? "guardian"
+                : "archer"
               : ["stone", "ice", "fire", "mountain"].includes(
                     factionId(s, owner),
                   )
@@ -868,33 +1061,23 @@ export function aiTurn(state, owner = 1) {
     const t = orderedTiles.find(
       (t) =>
         t.owner === owner &&
-        !developmentReason(
-          s,
-          t,
-          "improve",
-          t.building === "farm" || t.building === "estate"
-            ? "farm2"
-            : t.terrain === "forest"
-              ? "lumber"
-              : "farm",
-        ),
+        !developmentReason(s, t, "improve", nextBuilding(s, t)),
     );
     if (t)
       act({
         type: "improve",
         tile: t.id,
-        kind:
-          t.building === "farm" || t.building === "estate"
-            ? "farm2"
-            : t.terrain === "forest"
-              ? "lumber"
-              : "farm",
+        kind: nextBuilding(s, t),
       });
   }
   if (has(s, owner, "logistics") && s.players[owner].stars >= 7) {
-    const t = orderedTiles.find(
-      (t) => t.owner === owner && !developmentReason(s, t, "road"),
-    );
+    const planned = plannedTradeRoads(s, owner)[0];
+    const t =
+      planned !== undefined
+        ? s.tiles[planned]
+        : orderedTiles.find(
+            (t) => t.owner === owner && !developmentReason(s, t, "road"),
+          );
     if (t) act({ type: "road", tile: t.id });
   }
   act({ type: "end" });
@@ -905,6 +1088,9 @@ export function validateSave(s) {
   if (
     !s ||
     ![1, 2, 3].includes(s.version) ||
+    (s.climates !== undefined && typeof s.climates !== "boolean") ||
+    (s.version < 3 && s.climates === true) ||
+    (s.renownTarget !== undefined && ![12, 24].includes(s.renownTarget)) ||
     !MAP_SIZES.includes(mapSize(s)) ||
     !int(s.seed, 0, 4294967295) ||
     !int(s.round, 1, roundLimit(s)) ||
@@ -980,6 +1166,8 @@ export function validateSave(s) {
         int(u.tile, 0, mapSize(s) ** 2 - 1) &&
         canTraverse(s, s.tiles[u.tile], u.owner) &&
         Object.hasOwn(UNITS, u.type) &&
+        (u.escort === undefined ||
+          (s.version === 3 && u.escort === true && u.type === "scout")) &&
         int(u.hp, 1, s.version === 1 ? UNITS[u.type].hp : unitStats(s, u).hp) &&
         typeof u.moved === "boolean" &&
         typeof u.attacked === "boolean",
@@ -991,8 +1179,8 @@ export function validateSave(s) {
   if (s.version >= 2) {
     if (
       s.players.some((p) =>
-        p.tech.some(
-          (key) => TECHS[key].requires && !p.tech.includes(TECHS[key].requires),
+        p.tech.some((key) =>
+          prerequisites(key).some((k) => !p.tech.includes(k)),
         ),
       )
     )
@@ -1026,6 +1214,10 @@ export function validateSave(s) {
           (t.building &&
             BUILDINGS[t.building]?.terrain &&
             t.terrain !== BUILDINGS[t.building].terrain) ||
+          (t.building &&
+            t.terrain === "grass" &&
+            climateAt(s, t) !==
+              (BUILDINGS[t.building]?.climate ?? "temperate")) ||
           (t.city &&
             (![null, "market", "barracks"].includes(t.city.specialization) ||
               ![null, "walls", "workshop"].includes(t.city.fortification) ||
