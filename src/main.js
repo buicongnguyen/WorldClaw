@@ -73,7 +73,7 @@ document.querySelector("#app").innerHTML = `
       <div class="map-heading"><span class="eyebrow">THE VERDANT REACH</span><h1>An island to claim.</h1><p>Explore. Establish. Endure.</p></div>
       <div id="world"></div>
       <div class="map-compass" aria-hidden="true"><span>N</span>✧</div>
-      <div class="camera-tools"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="reset-camera" aria-label="Reset camera">⌖</button></div>
+      <div class="camera-tools"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="focus-camera" aria-label="Inspect selected tile" title="Close-up of the selected tile">◎</button><button id="reset-camera" aria-label="Reset camera">⌖</button></div>
       <div class="map-caption"><span class="mint-dot"></span> <span id="explored">CHARTING THE UNKNOWN</span><span class="gesture">Drag to orbit · Scroll to zoom</span></div>
       <div id="toast" role="status" aria-live="polite"></div>
     </section>
@@ -91,6 +91,12 @@ const $ = (selector) => document.querySelector(selector);
 let world;
 try {
   world = createWorld($("#world"), pick);
+  world.ready.then((ok) => {
+    if (!ok)
+      notify(
+        "Detailed models could not load. Basic graphics are active; reload to retry.",
+      );
+  });
 } catch (error) {
   $("#world").innerHTML =
     '<div class="webgl-error"><h2>3D rendering is unavailable</h2><p>Enable hardware acceleration or try a browser with WebGL2. You can still play using the tile navigator.</p></div>';
@@ -427,6 +433,7 @@ $("#new-game").onclick = showNewGame;
 $("#zoom-in").onclick = () => world?.zoom(1.18);
 $("#zoom-out").onclick = () => world?.zoom(1 / 1.18);
 $("#reset-camera").onclick = () => world?.resetCamera();
+$("#focus-camera").onclick = () => world?.focus();
 $("#sound").onclick = () => {
   sound = !sound;
   $("#sound").classList.toggle("active", sound);
@@ -484,4 +491,5 @@ if (import.meta.env.DEV)
   window.__game = {
     getState: () => structuredClone(state),
     tileScreen: (id) => world?.tileScreen(id),
+    artDiagnostics: () => world?.diagnostics(),
   };

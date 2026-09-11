@@ -1,0 +1,81 @@
+{
+  "generator": "Blender 4.5.9",
+  "assets": {
+    "cottage": {
+      "vertices": 1014,
+      "triangles": 1952
+    },
+    "keep": {
+      "vertices": 721,
+      "triangles": 1384
+    },
+    "tower": {
+      "vertices": 776,
+      "triangles": 1500
+    },
+    "market": {
+      "vertices": 1016,
+      "triangles": 1960
+    },
+    "barracks": {
+      "vertices": 1174,
+      "triangles": 2252
+    },
+    "workshop": {
+      "vertices": 1142,
+      "triangles": 2196
+    },
+    "wall": {
+      "vertices": 560,
+      "triangles": 1080
+    },
+    "pine": {
+      "vertices": 1951,
+      "triangles": 1988
+    },
+    "oak": {
+      "vertices": 840,
+      "triangles": 1620
+    },
+    "rocks": {
+      "vertices": 810,
+      "triangles": 1600
+    },
+    "mountain": {
+      "vertices": 810,
+      "triangles": 1600
+    },
+    "farm": {
+      "vertices": 3612,
+      "triangles": 6852
+    },
+    "farm2": {
+      "vertices": 3741,
+      "triangles": 7102
+    },
+    "lumber": {
+      "vertices": 828,
+      "triangles": 1624
+    },
+    "beacon": {
+      "vertices": 648,
+      "triangles": 1252
+    },
+    "scout": {
+      "vertices": 1475,
+      "triangles": 2840
+    },
+    "guardian": {
+      "vertices": 1705,
+      "triangles": 3277
+    },
+    "archer": {
+      "vertices": 1604,
+      "triangles": 3070
+    },
+    "sentinel": {
+      "vertices": 1933,
+      "triangles": 3721
+    }
+  }
+}

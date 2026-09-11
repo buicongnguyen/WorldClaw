@@ -1,18 +1,21 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { loadArt, rebuildBatches } from "./art.js";
 import { SIZE, mapSize, UNITS, reachable, targets } from "./game.js";
 
 const colors = {
-  grass: [0x85b88a, 0x93bf91, 0x78ac80],
-  forest: [0x639878, 0x6da181],
-  water: [0x377e8b, 0x438995],
-  mountain: [0xb1b8a0],
-  fog: [0x496d75, 0x527880],
+  grass: [0x7d8a58, 0x869160, 0x73834f],
+  forest: [0x576943, 0x637448],
+  water: [0x3c6b71, 0x436f74],
+  mountain: [0x8d8b76],
+  fog: [0x526569, 0x596c70],
 };
 export const factionColors = [0x75e4c0, 0xed9375];
 export function createWorld(host, onPick) {
   let boardSize = SIZE,
     center = (SIZE - 1) / 2;
+  let needsFrame = true;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x183e49);
   scene.fog = new THREE.Fog(0x183e49, 27, 60);
@@ -20,9 +23,20 @@ export function createWorld(host, onPick) {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.92;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const studio = new RoomEnvironment();
+  const environment = pmrem.fromScene(studio, 0.04);
+  scene.environment = environment.texture;
+  scene.environmentIntensity = 0.3;
+  studio.dispose();
+  pmrem.dispose();
   renderer.setClearColor(0x183e49);
   host.appendChild(renderer.domElement);
+  renderer.domElement.dataset.art = "loading";
   renderer.domElement.setAttribute(
     "aria-label",
     "Interactive 3D island. Select tiles using the board or the tile navigator.",
@@ -32,10 +46,13 @@ export function createWorld(host, onPick) {
   camera.position.set(14, 16, 18);
   camera.lookAt(0, 0, 0);
   const controls = new OrbitControls(camera, renderer.domElement);
+  controls.addEventListener("change", () => {
+    needsFrame = true;
+  });
   controls.enableDamping = true;
   controls.dampingFactor = 0.09;
   controls.minZoom = 0.7;
-  controls.maxZoom = 2.8;
+  controls.maxZoom = 5;
   controls.minPolarAngle = 0.3;
   controls.maxPolarAngle = 1.15;
   controls.mouseButtons = {
@@ -43,8 +60,8 @@ export function createWorld(host, onPick) {
     MIDDLE: THREE.MOUSE.DOLLY,
     RIGHT: THREE.MOUSE.PAN,
   };
-  scene.add(new THREE.HemisphereLight(0xe4ffeb, 0x35414f, 2.4));
-  const sun = new THREE.DirectionalLight(0xffedd0, 3.1);
+  scene.add(new THREE.HemisphereLight(0xd5e4ed, 0x4a4030, 0.9));
+  const sun = new THREE.DirectionalLight(0xffdfb0, 2.8);
   sun.position.set(-8, 16, 9);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -55,10 +72,17 @@ export function createWorld(host, onPick) {
     bottom: -10,
   });
   sun.shadow.bias = -0.001;
+  sun.shadow.normalBias = 0.015;
+  sun.shadow.radius = 3;
   scene.add(sun);
   const board = new THREE.Group();
   board.name = "CrownAndCanopy_ChartedWorld";
   scene.add(board);
+  board.visible = false;
+  const renderedBoard = new THREE.Group();
+  scene.add(renderedBoard);
+  let art = null;
+  let artState = "loading";
   const overlays = new THREE.Group();
   scene.add(overlays);
   const labels = document.createElement("div");
@@ -66,6 +90,17 @@ export function createWorld(host, onPick) {
   host.appendChild(labels);
   const materials = new Map(),
     geometries = new Map();
+  const groundCanvas = document.createElement("canvas");
+  groundCanvas.width = groundCanvas.height = 128;
+  const groundContext = groundCanvas.getContext("2d");
+  const pixels = groundContext.createImageData(128, 128);
+  for (let i = 0; i < 128 * 128; i++) {
+    const grain = 190 + (((i * 73) ^ ((i >> 4) * 197)) % 57);
+    pixels.data.set([grain, grain, grain, 255], i * 4);
+  }
+  groundContext.putImageData(pixels, 0, 0);
+  const groundTexture = new THREE.CanvasTexture(groundCanvas);
+  groundTexture.colorSpace = THREE.SRGBColorSpace;
   function material(color) {
     if (!materials.has(color))
       materials.set(
@@ -94,12 +129,21 @@ export function createWorld(host, onPick) {
   }
   const sea = mesh(scene, "Box", [200, 0.1, 200], 0x285c69, 0, -0.65, 0);
   sea.castShadow = false;
+  sea.material = new THREE.MeshStandardMaterial({
+    color: 0x365e68,
+    roughness: 0.38,
+    metalness: 0.22,
+  });
   let tileMeshes = [],
     labelItems = [],
     lastSignature = "",
     state,
     selected;
   function tree(g, x, z, scale = 1) {
+    if (art) {
+      art.add(g, "pine", x, 0.32, z, scale);
+      return;
+    }
     mesh(
       g,
       "Cylinder",
@@ -129,6 +173,10 @@ export function createWorld(host, onPick) {
     );
   }
   function house(g, x, z, tint, scale = 1) {
+    if (art) {
+      art.add(g, "cottage", x, 0.32, z, scale);
+      return;
+    }
     mesh(
       g,
       "Box",
@@ -192,6 +240,12 @@ export function createWorld(host, onPick) {
       );
       tile.userData.tile = t.id;
       tileMeshes.push(tile);
+      if (known && terrain !== "water") {
+        const earth = material(0x6b624d);
+        const ground = material(color);
+        ground.map = groundTexture;
+        tile.material = [earth, earth, ground, earth, earth, earth];
+      }
       if (!known) {
         if (t.id % 4 === 0)
           mesh(
@@ -223,11 +277,14 @@ export function createWorld(host, onPick) {
         border.castShadow = false;
       }
       if (t.terrain === "forest" && !t.improved) {
-        tree(g, -0.19, -0.12, 0.85);
-        tree(g, 0.2, 0.14, 0.68);
-        tree(g, 0.21, -0.22, 0.64);
+        tree(g, -0.19, -0.12, 0.8);
+        tree(g, 0.2, 0.14, 0.62);
+        if (art && t.id % 3 === 0) art.add(g, "oak", 0.22, 0.32, -0.22, 0.65);
+        else tree(g, 0.21, -0.22, 0.6);
       }
-      if (t.terrain === "mountain") {
+      if (t.terrain === "mountain" && art) {
+        art.add(g, "mountain", 0, 0.32, 0, 1, null, t.id * 0.73);
+      } else if (t.terrain === "mountain") {
         const mountain = mesh(
           g,
           "Cone",
@@ -249,7 +306,16 @@ export function createWorld(host, onPick) {
         ).rotation.y = 0.5;
         mesh(g, "Cone", [0.27, 0.55, 5], 0x81958e, 0.25, 0.54, 0.23);
       }
-      if (t.improved) {
+      if (t.improved && art) {
+        art.add(
+          g,
+          t.building === "estate" ? "farm" : t.building,
+          0,
+          0.32,
+          0,
+          1,
+        );
+      } else if (t.improved) {
         for (let j = 0; j < 4; j++)
           mesh(
             g,
@@ -272,7 +338,64 @@ export function createWorld(host, onPick) {
         mesh(g, "Box", [0.94, 0.025, 0.16], 0xc3b994, 0, 0.335, 0);
         mesh(g, "Box", [0.16, 0.025, 0.94], 0xc3b994, 0, 0.337, 0);
       }
-      if (t.city) {
+      if (t.city && art) {
+        for (let i = 0; i < 12; i++)
+          mesh(
+            g,
+            "Box",
+            [0.12, 0.018, 0.09],
+            0x96917c,
+            -0.37 + (i % 4) * 0.25,
+            0.34,
+            -0.35 + Math.floor(i / 4) * 0.34,
+          );
+        art.add(
+          g,
+          t.city.capital !== null || t.city.level > 1 ? "keep" : "cottage",
+          0,
+          0.32,
+          -0.15,
+          1,
+          t.owner,
+        );
+        art.add(g, "cottage", -0.27, 0.32, 0.23, 0.67, t.owner);
+        art.add(g, "cottage", 0.27, 0.32, 0.22, 0.6, t.owner);
+        if (t.city.specialization)
+          art.add(g, t.city.specialization, 0.29, 0.32, -0.26, 0.65, t.owner);
+        if (t.city.level >= 3)
+          art.add(g, "tower", -0.32, 0.32, -0.28, 0.86, t.owner);
+        if (t.city.fortification === "walls")
+          for (const z of [-0.43, 0.43])
+            art.add(g, "wall", 0, 0.32, z, 1, t.owner);
+        if (t.city.fortification === "workshop")
+          art.add(g, "workshop", 0.25, 0.32, 0.23, 0.65, t.owner);
+        if (t.occupation) mesh(g, "Octahedron", [0.12, 0], 0xffb879, 0, 1.5, 0);
+        mesh(
+          g,
+          "Cylinder",
+          [0.014, 0.014, 0.62, 8],
+          0x7b6647,
+          0.39,
+          0.62,
+          -0.38,
+        );
+        mesh(
+          g,
+          "Box",
+          [0.19, 0.12, 0.012],
+          t.owner === null ? 0xb7b29a : factionColors[t.owner],
+          0.47,
+          0.89,
+          -0.38,
+        );
+        addLabel(
+          `${t.occupation ? "⚑ " : t.city.capital !== null ? "♛ " : ""}${t.city.name}${t.city.level > 1 ? ` ${["", "I", "II", "III"][t.city.level]}` : ""}`,
+          t.x - center,
+          0.2,
+          t.z - center + 0.45,
+          `city-label owner-${t.owner}`,
+        );
+      } else if (t.city) {
         const c =
           t.owner === null ? 0x819baa : t.owner === 0 ? 0x337e70 : 0xbc6251;
         house(g, -0.2, 0.17, c, 0.9);
@@ -317,7 +440,10 @@ export function createWorld(host, onPick) {
           `city-label owner-${t.owner}`,
         );
       }
-      if (t.beacon) {
+      if (t.beacon && art) {
+        art.add(g, "beacon", 0, 0.32, 0, 1, t.owner);
+        addLabel("◇ BEACON", t.x - center, 1.52, t.z - center, "beacon-label");
+      } else if (t.beacon) {
         mesh(g, "Cylinder", [0.31, 0.37, 0.12, 6], 0xcac3a4, 0, 0.36, 0);
         mesh(g, "Cylinder", [0.1, 0.15, 0.55, 5], 0xebe1ba, 0, 0.67, 0);
         const crystal = mesh(
@@ -339,6 +465,7 @@ export function createWorld(host, onPick) {
         t.terrain === "grass" &&
         t.id % 3 === 0
       ) {
+        if (art) art.add(g, "rocks", 0.2, 0.32, -0.2, 0.23, null, t.id);
         for (let i = 0; i < 3; i++)
           mesh(
             g,
@@ -350,6 +477,13 @@ export function createWorld(host, onPick) {
             -0.25,
           );
       }
+      if (art && !t.city && !t.beacon && !t.improved && t.terrain === "grass") {
+        for (let i = 0; i < 7; i++) {
+          const x = ((t.id * 17 + i * 37) % 89) / 100 - 0.44,
+            z = ((t.id * 29 + i * 19) % 87) / 100 - 0.43;
+          mesh(g, "Cone", [0.028, 0.1, 3], 0x576439, x, 0.37, z);
+        }
+      }
     }
     for (const u of s.units.filter((u) => seen.has(u.tile))) {
       const t = s.tiles[u.tile],
@@ -358,6 +492,37 @@ export function createWorld(host, onPick) {
       g.position.set(t.x - center, t.city ? 0.25 : 0, t.z - center);
       board.add(g);
       const color = factionColors[u.owner];
+      if (art) {
+        mesh(g, "Cylinder", [0.23, 0.26, 0.045, 24], color, 0, 0.35, 0);
+        art.add(
+          g,
+          u.type,
+          0,
+          0.38,
+          0,
+          1,
+          u.owner,
+          u.owner === 0 ? -0.35 : Math.PI - 0.35,
+        );
+        if (u.rank)
+          mesh(
+            g,
+            "Octahedron",
+            [0.065 + u.rank * 0.015, 0],
+            0xe6bf65,
+            0,
+            1.42,
+            0,
+          );
+        addLabel(
+          `${u.hp} ${u.owner === 0 && !u.attacked ? "•" : ""}`,
+          t.x - center,
+          1.5 + (t.city ? 0.25 : 0),
+          t.z - center,
+          `hp-label owner-${u.owner} ${u.moved && u.attacked ? "spent" : ""}`,
+        );
+        continue;
+      }
       mesh(g, "Cylinder", [0.23, 0.28, 0.08, 12], 0x314e50, 0, 0.36, 0.05);
       mesh(g, "Cylinder", [0.19, 0.22, 0.045, 12], color, 0, 0.415, 0.05);
       mesh(
@@ -411,8 +576,12 @@ export function createWorld(host, onPick) {
         `hp-label owner-${u.owner} ${u.moved && u.attacked ? "spent" : ""}`,
       );
     }
+    rebuildBatches(board, renderedBoard);
+    renderer.shadowMap.needsUpdate = true;
+    needsFrame = true;
   }
   function update(s, selectedTile, selectedUnit) {
+    needsFrame = true;
     if (boardSize !== mapSize(s)) {
       boardSize = mapSize(s);
       center = (boardSize - 1) / 2;
@@ -459,6 +628,7 @@ export function createWorld(host, onPick) {
     }
   }
   const resize = () => {
+    needsFrame = true;
     const w = host.clientWidth,
       h = host.clientHeight;
     if (!w || !h) return;
@@ -501,6 +671,8 @@ export function createWorld(host, onPick) {
   renderer.setAnimationLoop(() => {
     if (document.hidden) return;
     controls.update();
+    if (!needsFrame) return;
+    needsFrame = false;
     renderer.render(scene, camera);
     const w = host.clientWidth,
       h = host.clientHeight;
@@ -535,23 +707,71 @@ export function createWorld(host, onPick) {
     }
   });
   function resetCamera() {
+    needsFrame = true;
     controls.target.set(0, 0, 0);
     camera.position.set(14, 16, 18);
     camera.zoom = 1;
     camera.updateProjectionMatrix();
     controls.update();
   }
+  const ready = loadArt()
+    .then((library) => {
+      art = library;
+      artState = "ready";
+      renderer.domElement.dataset.art = "ready";
+      if (state) {
+        rebuild(state);
+        lastSignature = JSON.stringify([
+          state.tiles,
+          state.units,
+          state.explored[0],
+        ]);
+      }
+      return true;
+    })
+    .catch((error) => {
+      artState = "fallback";
+      renderer.domElement.dataset.art = "fallback";
+      console.warn("Detailed art unavailable; using playable fallback.", error);
+      return false;
+    });
   return {
+    ready,
+    diagnostics: () => ({
+      art: artState,
+      drawCalls: renderer.info.render.calls,
+      renderedFrames: renderer.info.render.frame,
+      triangles: renderer.info.render.triangles,
+      geometries: renderer.info.memory.geometries,
+      textures: renderer.info.memory.textures,
+      batches: renderedBoard.children.length,
+    }),
+    focus: () => {
+      if (selected === null || !state?.explored[0].includes(selected)) return;
+      const t = state.tiles[selected],
+        target = new THREE.Vector3(t.x - center, 0, t.z - center);
+      const delta = target.clone().sub(controls.target);
+      controls.target.copy(target);
+      camera.position.add(delta);
+      camera.zoom = 3.2;
+      camera.updateProjectionMatrix();
+      controls.update();
+    },
     update,
     resetCamera,
     zoom: (n) => {
-      camera.zoom = THREE.MathUtils.clamp(camera.zoom * n, 0.7, 2.8);
+      needsFrame = true;
+      camera.zoom = THREE.MathUtils.clamp(camera.zoom * n, 0.7, 5);
       camera.updateProjectionMatrix();
     },
     exportGLB: async () => {
       const { GLTFExporter } =
         await import("three/addons/exporters/GLTFExporter.js");
-      const data = await new GLTFExporter().parseAsync(board, { binary: true });
+      await ready;
+      const data = await new GLTFExporter().parseAsync(board, {
+        binary: true,
+        onlyVisible: false,
+      });
       const url = URL.createObjectURL(
         new Blob([data], { type: "model/gltf-binary" }),
       );

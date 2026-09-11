@@ -8,6 +8,8 @@ New expeditions use **17×17 islands**, eight neutral villages and a 40-round li
 
 Original low-poly meshes, names and rules inspired by compact turn-based 4X games such as The Battle of Polytopia. This is an independent single-player prototype, not affiliated with Midjiwan or Tencent.
 
+Visual upgrade: 19 Blender-built medieval models, packed PBR materials, detailed soldiers/buildings/vegetation, and improved lighting. Select a tile and use **◎** to inspect it closely. See the [editable Blender pipeline](docs/BLENDER.md) and [art review](docs/ART_REVIEW.md).
+
 ## Play
 
 Select your scout, select a mint-outlined tile, then choose **Move** in the inspector. Neutral villages and beacons transfer immediately; enemy cities require an occupier to survive the defender's turn. Select an empty owned city to recruit. **End turn** lets the AI act and collects your next income.

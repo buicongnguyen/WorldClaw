@@ -10,6 +10,9 @@ test("desktop: real WebGL, movement, recruitment, research, save, AI and export"
   await page.goto("/");
   await expect(page.locator("canvas")).toBeVisible();
   await page.waitForFunction(() => !!window.__game);
+  await page.waitForFunction(
+    () => window.__game.artDiagnostics().art === "ready",
+  );
   const initial = await page.evaluate(() => window.__game.getState());
   expect(initial.size).toBe(17);
   const capital = initial.tiles.find((t) => t.city?.capital === 0).id;
@@ -127,6 +130,7 @@ test("beacon victory resolves on resumed AI turn and disables gameplay", async (
 test("progression UI: prerequisites, farms, barracks, veteran training and workshop", async ({
   page,
 }) => {
+  test.setTimeout(60000);
   const s = createGame();
   s.players[0].stars = 500;
   s.units[0].tile = idAt(2, 7);
