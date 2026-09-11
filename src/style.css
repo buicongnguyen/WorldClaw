@@ -1199,3 +1199,45 @@ dialog .eyebrow {
 .recruit-grid .action {
   width: 100%;
 }
+/* Modular Blender army guide: kept out of the already dense bottom toolbar. */
+.armory-button {
+  margin-top: 16px;
+  width: 100%;
+}
+.armory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.armory-unit {
+  border: 1px solid #52716d;
+  border-radius: 10px;
+  padding: 15px;
+  background: #173a40;
+}
+.armory-unit h4 {
+  margin: 0 0 8px;
+  color: #f4dfab;
+}
+.armory-unit p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.armory-unit small {
+  color: #b8d2c9;
+  line-height: 1.6;
+}
+.armory-sheet {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 16px 0;
+  background: #dae0e3;
+}
+.tribe-review summary {
+  cursor: pointer;
+  padding: 16px 0;
+  color: #f4dfab;
+}

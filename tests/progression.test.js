@@ -14,7 +14,7 @@ import {
   idAt,
   TECHS,
 } from "../src/game.js";
-import { developmentReason } from "../src/progression.js";
+import { developmentReason, prerequisites } from "../src/progression.js";
 const act = (s, a) => {
   const r = command(s, a);
   assert.equal(r.error, null, JSON.stringify(a));
@@ -94,9 +94,18 @@ test("research graph is acyclic, complete, and gated without charging", () => {
       next = TECHS[next].requires;
     }
   }
-  for (const key of Object.keys(TECHS).filter((key) => !TECHS[key].faction))
+  const pending = new Set(
+    Object.keys(TECHS).filter((key) => !TECHS[key].faction),
+  );
+  while (pending.size) {
+    const key = [...pending].find((key) =>
+      prerequisites(key).every((p) => s.players[0].tech.includes(p)),
+    );
+    assert.ok(key, "Research graph must have a learnable next node");
     s = act(s, { type: "research", tech: key });
-  assert.equal(s.players[0].tech.length, 23);
+    pending.delete(key);
+  }
+  assert.equal(s.players[0].tech.length, 25);
 });
 test("farms require tech; upgrades replace income rather than stacking", () => {
   let s = rich();

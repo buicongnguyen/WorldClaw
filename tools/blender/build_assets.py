@@ -298,14 +298,15 @@ def asset(name, build):
     bpy.ops.object.transform_apply(location=True,rotation=True,scale=True)
     assets[name]=o
 
-for name, fn in [('cottage',cottage),('keep',keep),('tower',tower),('market',market),('barracks',barracks),('workshop',workshop),('wall',wall),('pine',pine),('oak',oak),('rocks',rocks),('mountain',lambda:rocks(True)),('farm',farm),('farm2',lambda:farm(True)),('lumber',lumber),('beacon',beacon)]: asset(name,fn)
-for kind in ['scout','guardian','archer','sentinel']: asset(kind,lambda k=kind:soldier(k))
+if __name__ == '__main__':
+    for name, fn in [('cottage',cottage),('keep',keep),('tower',tower),('market',market),('barracks',barracks),('workshop',workshop),('wall',wall),('pine',pine),('oak',oak),('rocks',rocks),('mountain',lambda:rocks(True)),('farm',farm),('farm2',lambda:farm(True)),('lumber',lumber),('beacon',beacon)]: asset(name,fn)
+    for kind in ['scout','guardian','archer','sentinel']: asset(kind,lambda k=kind:soldier(k))
 
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.export_scene.gltf(filepath=str(OUT/'kingdom.glb'), export_format='GLB', use_selection=True, export_apply=True, export_cameras=False, export_lights=False, export_yup=True, export_image_format='AUTO')
-stats={name: {'vertices':len(o.data.vertices),'triangles':sum(len(p.vertices)-2 for p in o.data.polygons)} for name,o in assets.items()}
-(OUT/'manifest.json').write_text(json.dumps({'generator':'Blender 4.5.9','assets':stats},indent=2))
-# Arrange the editable source as a clean catalog, after export of centered prototypes.
-for i,o in enumerate(assets.values()): o.location=((i%5)*1.5,(i//5)*1.5,0)
-bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'kingdom.blend'))
-print('ASSET_BUILD_OK',json.dumps(stats))
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.export_scene.gltf(filepath=str(OUT/'kingdom.glb'), export_format='GLB', use_selection=True, export_apply=True, export_cameras=False, export_lights=False, export_yup=True, export_image_format='AUTO')
+    stats={name: {'vertices':len(o.data.vertices),'triangles':sum(len(p.vertices)-2 for p in o.data.polygons)} for name,o in assets.items()}
+    (OUT/'manifest.json').write_text(json.dumps({'generator':'Blender 4.5.9','assets':stats},indent=2))
+    # Arrange the editable source as a clean catalog, after export of centered prototypes.
+    for i,o in enumerate(assets.values()): o.location=((i%5)*1.5,(i//5)*1.5,0)
+    bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'kingdom.blend'))
+    print('ASSET_BUILD_OK',json.dumps(stats))

@@ -15,6 +15,7 @@ import {
   nextBuilding,
 } from "./progression.js";
 import { climateAt } from "./climate.js";
+import { LIVERIES } from "./appearance.js";
 import { FACTION_TYPES, faction, factionId, factionName } from "./factions.js";
 export {
   TECHS,
@@ -36,10 +37,121 @@ export const GOAL = 12;
 export const renownGoal = (s) => s.renownTarget ?? GOAL;
 export const FACTIONS = ["Canopy Covenant", "Ember Court"];
 export const UNITS = {
-  scout: { name: "Scout", hp: 8, attack: 3, range: 1, move: 2, cost: 4 },
-  guardian: { name: "Guardian", hp: 12, attack: 5, range: 1, move: 1, cost: 5 },
-  archer: { name: "Archer", hp: 8, attack: 4, range: 2, move: 1, cost: 6 },
-  sentinel: { name: "Sentinel", hp: 16, attack: 6, range: 1, move: 1, cost: 9 },
+  scout: {
+    name: "Scout",
+    hp: 8,
+    attack: 3,
+    range: 1,
+    move: 2,
+    cost: 4,
+    equipment: "Knife, scabbard and light kit. Fast exploration.",
+  },
+  guardian: {
+    name: "Guardian",
+    hp: 12,
+    attack: 5,
+    range: 1,
+    move: 1,
+    cost: 5,
+    equipment: "Sword and large kite shield. Durable front-line infantry.",
+  },
+  archer: {
+    name: "Archer",
+    hp: 8,
+    attack: 4,
+    range: 2,
+    move: 1,
+    cost: 6,
+    equipment:
+      "Bow, arrows and quiver. Requires Archery; develops through Marksmanship and Longbows.",
+  },
+  sentinel: {
+    name: "Sentinel",
+    hp: 16,
+    attack: 6,
+    range: 1,
+    move: 1,
+    cost: 9,
+    equipment:
+      "Long sword, plate armor and shield. Requires Engineering and a city Workshop.",
+  },
+  spearman: {
+    name: "Spearman",
+    hp: 10,
+    attack: 4,
+    range: 1,
+    move: 1,
+    cost: 6,
+    requires: ["training"],
+    equipment: "Long spear and buckler. +2 attack against mounts on land.",
+  },
+  rider: {
+    name: "Horse rider",
+    hp: 12,
+    attack: 4,
+    range: 1,
+    move: 3,
+    cost: 9,
+    requires: ["riding"],
+    mounted: true,
+    equipment: "Horse, saddle and sword. +1 attack after moving on land.",
+  },
+  camel: {
+    name: "Camel rider",
+    hp: 12,
+    attack: 4,
+    range: 1,
+    move: 3,
+    cost: 9,
+    requires: ["riding", "desertfarming"],
+    mounted: true,
+    equipment: "Camel, packs and spear. +1 protection on desert ground.",
+  },
+  boat: {
+    name: "Boat",
+    hp: 10,
+    attack: 3,
+    range: 1,
+    move: 2,
+    cost: 6,
+    requires: ["sailing"],
+    domain: "water",
+    equipment: "Oared hull. Water-only boarding craft.",
+  },
+  ship: {
+    name: "Ship",
+    hp: 16,
+    attack: 5,
+    range: 2,
+    move: 2,
+    cost: 10,
+    requires: ["navigation"],
+    domain: "water",
+    equipment: "Sailing hull with crew. Water-only ranged support.",
+  },
+  gunship: {
+    name: "Gunship",
+    hp: 18,
+    attack: 7,
+    range: 3,
+    move: 1,
+    cost: 15,
+    requires: ["navalgunnery"],
+    domain: "water",
+    equipment:
+      "Four deck guns. Fire or move, not both; after acting, cannot retaliate until your next turn.",
+  },
+  cutter: {
+    name: "Fast cutter",
+    hp: 10,
+    attack: 3,
+    range: 2,
+    move: 4,
+    cost: 11,
+    requires: ["navigation"],
+    domain: "water",
+    equipment: "Narrow hull and angled sail. Fast but fragile.",
+  },
 };
 export function unitStats(s, u) {
   const base = UNITS[u.type],
@@ -53,11 +165,16 @@ export function unitStats(s, u) {
     attack:
       base.attack +
       rank +
-      Number(base.range === 1 && has(s, u.owner, "dueling")) +
+      Number(
+        base.range === 1 &&
+          base.domain !== "water" &&
+          has(s, u.owner, "dueling"),
+      ) +
       (u.type === "archer" && has(s, u.owner, "firecraft") ? 1 : 0) +
       Number(
         factionId(s, u.owner) === "fire" &&
           base.range === 1 &&
+          base.domain !== "water" &&
           u.hp === base.hp + (u.promotion === "resilience" ? 2 * rank : 0),
       ) +
       Number(
@@ -66,7 +183,10 @@ export function unitStats(s, u) {
           s.tiles[u.tile].terrain === "grass",
       ),
     move:
-      (u.escort ? 3 : base.move + (has(s, u.owner, "trails") ? 1 : 0)) +
+      (u.escort
+        ? 3
+        : base.move +
+          (base.domain !== "water" && has(s, u.owner, "trails") ? 1 : 0)) +
       (u.promotion === "mobility" ? rank : 0),
   };
 }
@@ -84,14 +204,16 @@ export const neighbors = (s, t) =>
 export const unitAt = (s, tile) => s.units.find((u) => u.tile === tile);
 export const passable = (t) => t && !["water", "mountain"].includes(t.terrain);
 // Unit traversal is separate from buildable land and canonical map connectivity.
-export const canTraverse = (s, t, owner) =>
+export const canTraverse = (s, t, owner, unit) =>
   !!t &&
-  (passable(t) ||
-    (t.terrain === "water" &&
-      (factionId(s, owner) === "water" ||
-        has(s, owner, "frozenpaths") ||
-        has(s, owner, "sailing"))) ||
-    (t.terrain === "mountain" && factionId(s, owner) === "mountain"));
+  (unit && UNITS[unit.type]?.domain === "water"
+    ? t.terrain === "water"
+    : passable(t) ||
+      (t.terrain === "water" &&
+        (factionId(s, owner) === "water" ||
+          has(s, owner, "frozenpaths") ||
+          has(s, owner, "sailing"))) ||
+      (t.terrain === "mountain" && factionId(s, owner) === "mountain"));
 const clone = (s) => structuredClone(s);
 function random(seed) {
   let a = seed >>> 0;
@@ -412,7 +534,7 @@ export function reachable(s, u) {
     queue.sort((a, b) => costs.get(a) - costs.get(b));
     const cur = queue.shift();
     for (const t of neighbors(s, s.tiles[cur])) {
-      if (!canTraverse(s, t, u.owner) || unitAt(s, t.id)) continue;
+      if (!canTraverse(s, t, u.owner, u) || unitAt(s, t.id)) continue;
       const from = s.tiles[cur];
       const road =
         has(s, u.owner, "logistics") &&
@@ -428,6 +550,7 @@ export function reachable(s, u) {
           ? 0.5
           : t.terrain === "forest" ||
               (t.terrain === "water" &&
+                UNITS[u.type].domain !== "water" &&
                 !has(s, u.owner, "oceanways") &&
                 !has(s, u.owner, "navigation") &&
                 !has(s, u.owner, "frozenpaths"))
@@ -463,10 +586,12 @@ function protection(s, unit, attacker) {
     Number(
       attacker &&
         UNITS[attacker.type].range === 1 &&
+        UNITS[attacker.type].domain !== "water" &&
         ["guardian", "sentinel"].includes(unit.type) &&
         has(s, unit.owner, "shielddrill"),
     ) +
     Number(t.terrain === "grass" && factionId(s, unit.owner) === "ice") +
+    Number(unit.type === "camel" && climateAt(s, t) === "desert") +
     Number(t.terrain === "water" && has(s, unit.owner, "oceanways")) +
     Number(t.terrain === "mountain" && has(s, unit.owner, "summitguard")) * 2 +
     (t.city &&
@@ -490,9 +615,21 @@ export function shorePenalty(s, a, b) {
       (s.tiles[b.tile].terrain === "water") && !has(s, a.owner, "marines"),
   );
 }
-function attackPower(s, a, b) {
+function attackPower(s, a, b, retaliating = false) {
   return (
     unitStats(s, a).attack +
+    Number(
+      a.type === "spearman" &&
+        UNITS[b.type].mounted === true &&
+        s.tiles[b.tile].terrain !== "water",
+    ) *
+      2 +
+    Number(
+      a.type === "rider" &&
+        a.moved &&
+        !retaliating &&
+        s.tiles[a.tile].terrain !== "water",
+    ) +
     Number(
       a.type === "archer" &&
         has(s, a.owner, "marksmanship") &&
@@ -513,12 +650,13 @@ export function combatPreview(s, attacker, defender) {
   const remaining = Math.max(0, defender.hp - damage);
   const retaliation =
     remaining > 0 &&
+    !(defender.type === "gunship" && defender.moved) &&
     distance(s.tiles[attacker.tile], s.tiles[defender.tile]) <=
       unitStats(s, defender).range
       ? Math.max(
           1,
           Math.ceil(
-            (attackPower(s, { ...defender, hp: remaining }, attacker) *
+            (attackPower(s, { ...defender, hp: remaining }, attacker, true) *
               remaining) /
               unitStats(s, defender).hp,
           ) -
@@ -534,6 +672,7 @@ export function combatPreview(s, attacker, defender) {
   };
 }
 export function targets(s, u) {
+  if (u?.type === "gunship" && u.moved) return [];
   if (!u || u.owner !== s.active || u.attacked || s.winner !== null) return [];
   return s.units.filter(
     (v) =>
@@ -607,12 +746,34 @@ function resolveOccupations(s, defender) {
       );
   }
 }
+export function launchTile(s, t, owner = s.active) {
+  return s.tiles
+    .filter(
+      (n) => n.terrain === "water" && distance(n, t) <= 3 && !unitAt(s, n.id),
+    )
+    .sort(
+      (a, b) =>
+        distance(a, t) - distance(b, t) ||
+        (owner === 0 ? a.id - b.id : b.id - a.id),
+    )[0];
+}
 export function recruitReason(s, t, kind) {
   const def = Object.hasOwn(UNITS, kind) ? UNITS[kind] : null;
   if (!def || !t?.city || t.owner !== s.active)
     return "Recruit at a city you control.";
   if (contested(s, t)) return "Enemy occupation blocks recruitment.";
-  if (unitAt(s, t.id)) return "Move the unit out of the city first.";
+  if (
+    unitAt(s, t.id)?.owner !== undefined &&
+    unitAt(s, t.id).owner !== s.active
+  )
+    return "Enemy troops block recruitment.";
+  if (unitAt(s, t.id) && def.domain !== "water")
+    return "Move the unit out of the city first.";
+  const missing = (def.requires ?? []).filter((k) => !has(s, s.active, k));
+  if (missing.length)
+    return `Requires ${missing.map((k) => TECHS[k].name).join(" + ")}.`;
+  if (def.domain === "water" && !launchTile(s, t))
+    return "Needs free water within 3 tiles of this coastal city.";
   if (kind === "archer" && !has(s, s.active, "archery"))
     return "Research Archery first.";
   if (
@@ -638,7 +799,11 @@ export function command(state, action) {
     (!u || u.owner !== s.active)
   )
     return bad("Select one of your units.");
-  if (action.type === "move") {
+  if (action.type === "livery") {
+    if (!LIVERIES.includes(action.livery))
+      return bad("Unknown cosmetic style.");
+    p.livery = action.livery;
+  } else if (action.type === "move") {
     if (!reachable(s, u).includes(action.tile))
       return bad("That tile is not reachable this turn.");
     u.tile = action.tile;
@@ -699,7 +864,7 @@ export function command(state, action) {
     p.stars -= def.cost;
     s.units.push({
       id: s.nextId++,
-      tile: t.id,
+      tile: def.domain === "water" ? launchTile(s, t).id : t.id,
       owner: s.active,
       type: action.kind,
       hp: def.hp,
@@ -878,14 +1043,30 @@ export function aiTurn(state, owner = 1) {
       );
       if (capital.owner === owner && threats.length && u.type !== "scout")
         goals = threats.map((v) => s.tiles[v.tile]);
+      // Ships seek water firing positions; seeding a land-city distance field
+      // would trap them on the first coastline and send them back and forth.
+      if (UNITS[u.type].domain === "water") {
+        const targetsOnShore = s.units.filter(
+          (v) => v.owner !== owner && known.has(v.tile),
+        );
+        goals = s.tiles.filter(
+          (t) =>
+            t.terrain === "water" &&
+            known.has(t.id) &&
+            targetsOnShore.some(
+              (v) => distance(t, s.tiles[v.tile]) <= unitStats(s, u).range,
+            ),
+        );
+      }
       const frontier = s.tiles.filter(
         (t) =>
           known.has(t.id) &&
-          canTraverse(s, t, owner) &&
+          canTraverse(s, t, owner, u) &&
           neighbors(s, t).some((n) => !known.has(n.id)),
       );
       const options = reachable(s, u);
       const training =
+        UNITS[u.type].domain !== "water" &&
         (u.rank ?? 0) < 2 &&
         (u.xp ?? 0) >= (u.rank ? 6 : 3) &&
         has(s, owner, u.rank ? "tactics" : "training")
@@ -913,7 +1094,7 @@ export function aiTurn(state, owner = 1) {
         const cur = queue.shift();
         for (const n of neighbors(s, s.tiles[cur]))
           if (
-            canTraverse(s, n, owner) &&
+            canTraverse(s, n, owner, u) &&
             known.has(n.id) &&
             !distances.has(n.id)
           ) {
@@ -938,6 +1119,11 @@ export function aiTurn(state, owner = 1) {
   for (const tech of [
     "trails",
     "agriculture",
+    ...(s.round >= 7 ? ["riding"] : []),
+    ...(s.round >= 9 &&
+    s.tiles.some((t) => t.city && t.owner === owner && launchTile(s, t, owner))
+      ? ["sailing", "navigation", "navalgunnery"]
+      : []),
     ...(s.round >= 5
       ? s.units.some((u) => u.owner === owner && u.type === "archer")
         ? ["marksmanship", "longbows"]
@@ -979,6 +1165,8 @@ export function aiTurn(state, owner = 1) {
     "sailing",
     "navigation",
     "marines",
+    "riding",
+    "navalgunnery",
   ])
     if (
       !researchReason(s, tech) &&
@@ -1027,36 +1215,53 @@ export function aiTurn(state, owner = 1) {
       act({ type: "upgrade", tile: city.id, kind: preferred });
   }
   for (const city of orderedTiles.filter(
-    (t) => t.city && t.owner === owner && !t.occupation && !unitAt(s, t.id),
-  ))
-    if (
-      s.units.filter((u) => u.owner === owner).length <
-      Math.min(7, 2 + Math.floor(s.round / 5))
-    )
-      act({
-        type: "recruit",
-        tile: city.id,
-        kind:
-          city.city.fortification === "workshop" && has(s, owner, "engineering")
-            ? "sentinel"
-            : factionId(s, owner) === "ember"
-              ? s.units.filter(
-                  (u) => u.owner === owner && u.type === "guardian",
-                ).length <
-                s.units.filter((u) => u.owner === owner && u.type === "archer")
-                  .length
-                ? "guardian"
-                : "archer"
-              : ["stone", "ice", "fire", "mountain"].includes(
-                    factionId(s, owner),
-                  )
-                ? "guardian"
-                : s.players[owner].tech.includes("archery") && s.round % 3 === 0
-                  ? "archer"
-                  : s.round % 2
-                    ? "scout"
-                    : "guardian",
-      });
+    (t) => t.city && t.owner === owner && !t.occupation,
+  )) {
+    const army = s.units.filter((u) => u.owner === owner);
+    if (army.length < Math.min(7, 2 + Math.floor(s.round / 5))) {
+      const baseline =
+        city.city.fortification === "workshop" && has(s, owner, "engineering")
+          ? "sentinel"
+          : factionId(s, owner) === "ember"
+            ? s.units.filter((u) => u.owner === owner && u.type === "guardian")
+                .length <
+              s.units.filter((u) => u.owner === owner && u.type === "archer")
+                .length
+              ? "guardian"
+              : "archer"
+            : ["stone", "ice", "fire", "mountain"].includes(factionId(s, owner))
+              ? "guardian"
+              : s.players[owner].tech.includes("archery") && s.round % 3 === 0
+                ? "archer"
+                : s.round % 2
+                  ? "scout"
+                  : "guardian";
+      const hasEnemyMount = s.units.some(
+        (u) =>
+          u.owner !== owner &&
+          UNITS[u.type].mounted &&
+          s.explored[owner].includes(u.tile),
+      );
+      const candidates = [
+        ...(hasEnemyMount && !army.some((u) => u.type === "spearman")
+          ? ["spearman"]
+          : []),
+        ...(s.round >= 9 &&
+        army.length >= 3 &&
+        army.filter((u) => UNITS[u.type].domain === "water").length < 2
+          ? ["gunship", s.round % 2 ? "ship" : "cutter", "boat"]
+          : []),
+        ...(!army.some((u) => UNITS[u.type].mounted) ? ["camel", "rider"] : []),
+        baseline,
+        "guardian",
+        "scout",
+      ];
+      const kind = candidates.find(
+        (kind) => !recruitReason(s, s.tiles[city.id], kind),
+      );
+      if (kind) act({ type: "recruit", tile: city.id, kind });
+    }
+  }
   if (s.players[owner].stars >= 9) {
     const t = orderedTiles.find(
       (t) =>
@@ -1110,6 +1315,7 @@ export function validateSave(s) {
         int(p.stars, 0, 100000) &&
         int(p.renown, 0, 100) &&
         Array.isArray(p.tech) &&
+        (p.livery === undefined || LIVERIES.includes(p.livery)) &&
         new Set(p.tech).size === p.tech.length &&
         p.tech.every((t) => Object.hasOwn(TECHS, t)),
     )
@@ -1164,8 +1370,9 @@ export function validateSave(s) {
         int(u.id, 1, s.nextId - 1) &&
         [0, 1].includes(u.owner) &&
         int(u.tile, 0, mapSize(s) ** 2 - 1) &&
-        canTraverse(s, s.tiles[u.tile], u.owner) &&
+        canTraverse(s, s.tiles[u.tile], u.owner, u) &&
         Object.hasOwn(UNITS, u.type) &&
+        (s.version !== 1 || ["scout", "guardian", "archer"].includes(u.type)) &&
         (u.escort === undefined ||
           (s.version === 3 && u.escort === true && u.type === "scout")) &&
         int(u.hp, 1, s.version === 1 ? UNITS[u.type].hp : unitStats(s, u).hp) &&
@@ -1190,6 +1397,7 @@ export function validateSave(s) {
         (u) =>
           !int(u.xp, 0, 1000) ||
           !int(u.rank, 0, 2) ||
+          (UNITS[u.type].domain === "water" && u.rank !== 0) ||
           (u.rank === 0
             ? u.promotion !== null
             : !["mobility", "resilience"].includes(u.promotion)) ||

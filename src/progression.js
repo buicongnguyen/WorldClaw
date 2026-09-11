@@ -1,7 +1,25 @@
 // Shared registries and derived rules: the UI and command engine use the same gates.
 import { factionId } from "./factions.js";
 import { climateAt } from "./climate.js";
+import { NAVAL_ROLES } from "./appearance.js";
 export const TECHS = {
+  riding: {
+    name: "Riding",
+    requires: "trails",
+    cost: 10,
+    branch: "Mounted combat",
+    description:
+      "Recruit horse riders. Riding + Desert Farming unlocks camel riders.",
+  },
+  navalgunnery: {
+    name: "Naval Gunnery",
+    requires: "navigation",
+    requiresAll: ["engineering"],
+    cost: 16,
+    branch: "Seafaring",
+    description:
+      "Coastal cities launch gunships. Fire or move, not both; spent gunships cannot retaliate until their next turn.",
+  },
   dunewarfare: {
     name: "Dune Warfare",
     faction: "desert",
@@ -436,6 +454,8 @@ export function developmentReason(s, t, type, kind) {
 }
 export function promotionReason(s, u, choice) {
   if (!u || u.owner !== s.active) return "Select your unit.";
+  if (NAVAL_ROLES.includes(u.type))
+    return "Naval crews cannot train at land barracks.";
   if (!["mobility", "resilience"].includes(choice))
     return "Choose mobility or resilience.";
   const rank = u.rank ?? 0,

@@ -19,7 +19,10 @@ test("skill map shows branch links, two-parent gates and native climate costs on
   await page.goto("/");
   await expect(page.locator("#renown")).toHaveText("0 / 24");
   await page.locator("#research").click();
-  await expect(page.locator("[data-tech]")).toHaveCount(24);
+  await expect(page.locator("[data-tech]")).toHaveCount(26);
+  await expect(
+    page.locator("#skill-navalgunnery .skill-parents a"),
+  ).toHaveCount(2);
   await expect(page.locator("#skill-caravans .skill-parents a")).toHaveCount(2);
   await expect(page.locator('[data-tech="icefarming"]')).toBeDisabled();
   await page.locator('[data-tech="agriculture"]').click();

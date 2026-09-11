@@ -515,7 +515,7 @@ export function createWorld(host, onPick) {
       g.position.set(t.x - center, unitElevation, t.z - center);
       board.add(g);
       const color = factionColors[u.owner];
-      if (t.terrain === "water") {
+      if (t.terrain === "water" && !art && UNITS[u.type].domain !== "water") {
         // Keep amphibious armies visually supported above the sea surface.
         const frozen = s.players[u.owner].tech.includes("frozenpaths");
         mesh(
@@ -529,17 +529,9 @@ export function createWorld(host, onPick) {
         );
       }
       if (art) {
-        mesh(g, "Cylinder", [0.23, 0.26, 0.045, 24], color, 0, 0.35, 0);
-        art.add(
-          g,
-          u.type,
-          0,
-          0.38,
-          0,
-          1,
-          u.owner,
-          u.owner === 0 ? -0.35 : Math.PI - 0.35,
-        );
+        if (t.terrain !== "water")
+          mesh(g, "Cylinder", [0.23, 0.26, 0.045, 24], color, 0, 0.35, 0);
+        art.addArmy(g, s, u);
         if (u.rank)
           mesh(
             g,
@@ -547,15 +539,33 @@ export function createWorld(host, onPick) {
             [0.065 + u.rank * 0.015, 0],
             0xe6bf65,
             0,
-            1.42,
+            UNITS[u.type].mounted ? 1.78 : 1.42,
             0,
           );
         addLabel(
           `${u.hp} ${u.owner === 0 && !u.attacked ? "•" : ""}`,
           t.x - center,
-          1.5 + unitElevation,
+          (UNITS[u.type].mounted
+            ? 1.9
+            : UNITS[u.type].domain === "water"
+              ? 1
+              : 1.5) + unitElevation,
           t.z - center,
           `hp-label owner-${u.owner} ${u.moved && u.attacked ? "spent" : ""}`,
+        );
+        continue;
+      }
+      if (UNITS[u.type].domain === "water") {
+        mesh(g, "Box", [0.48, 0.2, 0.82], 0x88664b, 0, 0.04, 0).name =
+          "Fallback_hull";
+        mesh(g, "Cylinder", [0.025, 0.025, 0.85, 6], 0xc5ac73, 0, 0.5, 0);
+        mesh(g, "Box", [0.38, 0.42, 0.035], color, 0.12, 0.65, 0);
+        addLabel(
+          `${UNITS[u.type].name} · ${u.hp}`,
+          t.x - center,
+          1.1,
+          t.z - center,
+          `hp-label owner-${u.owner}`,
         );
         continue;
       }
@@ -637,7 +647,7 @@ export function createWorld(host, onPick) {
       s.tiles,
       s.units,
       s.explored[0],
-      s.players.map((p) => p.faction),
+      s.players.map((p) => [p.faction, p.livery]),
       s.climates,
     ]);
     if (signature !== lastSignature) {
@@ -767,7 +777,7 @@ export function createWorld(host, onPick) {
           state.tiles,
           state.units,
           state.explored[0],
-          state.players.map((p) => p.faction),
+          state.players.map((p) => [p.faction, p.livery]),
           state.climates,
         ]);
       }

@@ -36,6 +36,7 @@ import {
 import { SPECIALIZATIONS, nextBuilding } from "./progression.js";
 import { climateAt } from "./climate.js";
 import { skillMap } from "./skill-map.js";
+import { UNIT_ROLES, LIVERIES, appearanceFor } from "./appearance.js";
 import { createWorld } from "./world.js";
 
 const SAVE_KEY = "crown-canopy-v1";
@@ -102,6 +103,10 @@ document.querySelector("#app").innerHTML = `
   <dialog id="dialog"><div id="dialog-content"></div></dialog>
 `;
 const $ = (selector) => document.querySelector(selector);
+$(".realm-card").insertAdjacentHTML(
+  "beforeend",
+  '<button id="armory" class="outline armory-button">Army & styles</button>',
+);
 let world;
 try {
   world = createWorld($("#world"), pick);
@@ -283,8 +288,12 @@ function render() {
       );
     html +=
       '<p class="selection-tip">Select a mint outline to move. Select a rival to preview combat.</p>';
-    html += `<p class="unit-status">${u.xp} XP · Veteran ${u.rank}/2${u.promotion ? ` · ${u.promotion}` : ""}. Combat survival +1 XP; defeat an enemy +${factionId(state, u.owner) === "ember" ? 4 : 3}; capture +2.</p>`;
-    if (u.rank < 2)
+    html += `<p class="unit-status">${UNITS[u.type].equipment}</p><p class="selection-tip">${appearanceFor(state, u).style} livery · Cosmetic only</p>`;
+    html +=
+      UNITS[u.type].domain === "water"
+        ? `<p class="unit-status">${u.xp} XP · Naval crew. Cannot capture land cities or train at land barracks.</p>`
+        : `<p class="unit-status">${u.xp} XP · Veteran ${u.rank}/2${u.promotion ? ` · ${u.promotion}` : ""}. Combat survival +1 XP; defeat an enemy +${factionId(state, u.owner) === "ember" ? 4 : 3}; capture +2.</p>`;
+    if (u.rank < 2 && UNITS[u.type].domain !== "water")
       for (const choice of u.promotion
         ? [u.promotion]
         : ["mobility", "resilience"])
@@ -308,8 +317,9 @@ function render() {
           html += `<p class="selection-tip">${tradeCities(state, 0).has(t.id) ? "Trade route active · +2 income" : "Trade inactive · connect another friendly city with roads; keep the route free of enemies."}</p>`;
         html += `<p class="unit-status">${t.city.specialization ?? "No specialization"} · ${t.city.fortification ?? "No stronghold upgrade"}</p><div class="recruit-grid">`;
         for (const [kind, def] of Object.entries(UNITS))
-          html += `<div>${gatedButton(`${def.name}<small>✦ ${def.cost}</small>`, { type: "recruit", tile: t.id, kind }, recruitReason(state, t, kind))}</div>`;
-        html += "</div>";
+          html += `<div>${gatedButton(`${def.domain === "water" ? "Launch " : ""}${def.name}<small>✦ ${def.cost}</small>`, { type: "recruit", tile: t.id, kind }, recruitReason(state, t, kind))}</div>`;
+        html +=
+          '</div><p class="selection-tip">Ships launch on the nearest free water tile within 3 tiles. Move a launched ship to free its harbor. Infantry need the city tile empty.</p>';
         for (const [kind, def] of Object.entries(SPECIALIZATIONS)) {
           const retrofit =
             t.city.level >= def.level &&
@@ -373,6 +383,34 @@ function showResearch() {
         showResearch();
       }),
   );
+}
+function showArmory() {
+  const style = state.players[0].livery ?? "auto";
+  const names = {
+    auto: "By rank (default)",
+    field: "Field",
+    veteran: "Veteran livery",
+    ceremonial: "Ceremonial",
+  };
+  modal(`<span class="eyebrow">THE TRIBAL ARMORY</span><h2>${factionName(state, 0)} · Army & styles</h2>
+    <p>Nine tribe identities, eleven unit roles, three equipment styles. Armor silhouettes, headgear, cloth, ship prows and sails carry your tribe's identity.</p>
+    <label class="seed-label">Your army's livery<select id="livery" ${busy || state.active !== 0 || state.winner !== null ? "disabled" : ""}>${LIVERIES.map((v) => `<option value="${v}" ${v === style ? "selected" : ""}>${names[v]}</option>`).join("")}</select></label>
+    <p class="selection-tip">Cosmetics never change attack, health, movement, price or rank. By rank uses Field at rank 0, Veteran at rank 1 and Ceremonial at rank 2. Naval crews use Field by default. The gold rank marker always shows earned rank.</p>
+    <h3>Equipment & battlefield roles</h3><div class="armory-grid">${UNIT_ROLES.map(
+      (key) => {
+        const d = UNITS[key];
+        return `<article class="armory-unit" data-role="${key}"><h4>${d.name}</h4><p>${d.equipment}</p><small>HP ${d.hp} · Attack ${d.attack} · Range ${d.range} · Move ${d.move}<br>✦ ${d.cost}${d.requires ? " · " + d.requires.map((k) => TECHS[k].name).join(" + ") : ""}</small></article>`;
+      },
+    ).join(
+      "",
+    )}</div><p class="selection-tip">Base stats shown above; tribe abilities, research and earned ranks still apply. All tribes can research all eleven roles. Camel riders require Desert Farming; they are not exclusive to the desert tribe.</p>
+    <h3>Blender model review</h3><p>Front row: Scout, Guardian, Archer, Sentinel, Spearman, Horse rider. Back row: Camel rider, Boat, Ship, Gunship, Fast cutter.</p><img class="armory-sheet" src="${import.meta.env.BASE_URL}art/unit-roster.png" alt="Blender studio render of eleven infantry, mounted and naval units" loading="lazy">
+    <details class="tribe-review"><summary>Compare all nine tribes and three liveries</summary><p>Left to right: Canopy, Ember, Stoneward, Tidewell, Desert, Ice, Fire, Water, Mountain. Front: Field. Middle: Veteran. Back: Ceremonial.</p><img class="armory-sheet" src="${import.meta.env.BASE_URL}art/tribe-styles.png" alt="Twenty-seven Blender-rendered tribe and equipment variants" loading="lazy"></details>
+    <p class="muted">Original Blender-built stylized miniatures with layered equipment and packed PBR materials. These are static procedural assets, not fully rigged or hand-sculpted AAA production characters.</p>`);
+  $("#livery").onchange = (e) => {
+    act({ type: "livery", livery: e.target.value });
+    showArmory();
+  };
 }
 function showHelp() {
   const limitDescription = `This ${mapSize(state)}×${mapSize(state)} island lasts at most ${roundLimit(state)} rounds.`;
@@ -468,6 +506,7 @@ function nextUnit() {
 $("#end-turn").onclick = endTurn;
 $("#next-unit").onclick = nextUnit;
 $("#research").onclick = showResearch;
+$("#armory").onclick = showArmory;
 $("#help").onclick = showHelp;
 $("#new-game").onclick = showNewGame;
 $("#zoom-in").onclick = () => world?.zoom(1.18);

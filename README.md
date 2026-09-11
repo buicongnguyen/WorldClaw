@@ -6,13 +6,15 @@ New expeditions use **17×17 islands**, eight neutral villages and a 40-round li
 
 **[Play on GitHub Pages](https://buicongnguyen.github.io/WorldClaw/)**
 
-**Branching skill map:** 23 shared skills plus nine tribe masteries connect ranged/melee combat, sailing/navigation/Marines, interruptible road trade, and two-tier desert/ice farming. New islands offer visible climate regions and trained scout escorts for slower starting armies. See the [detailed design, review and measured balance results](docs/SKILL_TREE_PLAN.md).
+**Branching skill map:** 25 shared skills plus nine tribe masteries connect ranged/melee combat, mounted troops, naval gunnery, sailing/navigation/Marines, interruptible road trade, and two-tier desert/ice farming. New islands offer visible climate regions and trained scout escorts for slower starting armies. See the [skill design](docs/SKILL_TREE_PLAN.md) and [latest army review and measured balance results](docs/ARMY_ART_PLAN.md).
 
 Choose from **nine factions** in New island, including Desert, Ice, Fire, Water and Mountain tribes. Each has starting technology, a permanent trait, and an exclusive advanced research branch. Water armies can cross seas; Mountain armies can cross peaks; Ice armies unlock water crossing through research. You can also choose the AI faction. See [faction rules and save compatibility](docs/FACTIONS.md). Older saves retain their existing identities and rules.
 
 Original low-poly meshes, names and rules inspired by compact turn-based 4X games such as The Battle of Polytopia. This is an independent single-player prototype, not affiliated with Midjiwan or Tencent.
 
-Visual upgrade: 19 Blender-built medieval models, packed PBR materials, detailed soldiers/buildings/vegetation, and improved lighting. Select a tile and use **◎** to inspect it closely. See the [editable Blender pipeline](docs/BLENDER.md) and [art review](docs/ART_REVIEW.md).
+**Tribal armies:** Eleven playable roles: knife Scout, sword-and-shield Guardian, Archer, long-sword Sentinel, Spearman, Horse rider, Camel rider, Boat, Ship, Gunship and Fast cutter. Open **Army & styles** in your realm panel for the roster, research gates, Blender review sheets and Field/Veteran/Ceremonial cosmetic choices. Nine tribes × eleven roles × three styles = 297 modular combinations, not 297 independently sculpted characters.
+
+Visual upgrade: the 19-model environment/legacy pack plus 65 new Blender army prototypes, packed PBR materials, layered equipment, recognizable mounts, rigged sailing hulls and modeled cannons. Select a tile and use **◎** to inspect it closely. Editable source and reproduction commands are in the [Blender pipeline](docs/BLENDER.md). These are static stylized procedural miniatures, not AAA production characters. See the [army plan and review](docs/ARMY_ART_PLAN.md).
 
 ## Play
 
