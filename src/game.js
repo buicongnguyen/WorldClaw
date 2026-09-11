@@ -42,7 +42,17 @@ export function unitStats(s, u) {
     attack:
       base.attack +
       rank +
-      (u.type === "archer" && has(s, u.owner, "firecraft") ? 1 : 0),
+      (u.type === "archer" && has(s, u.owner, "firecraft") ? 1 : 0) +
+      Number(
+        factionId(s, u.owner) === "fire" &&
+          base.range === 1 &&
+          u.hp === base.hp + (u.promotion === "resilience" ? 2 * rank : 0),
+      ) +
+      Number(
+        u.type === "scout" &&
+          has(s, u.owner, "dunewarfare") &&
+          s.tiles[u.tile].terrain === "grass",
+      ),
     move:
       base.move +
       (has(s, u.owner, "trails") ? 1 : 0) +
@@ -62,6 +72,13 @@ export const neighbors = (s, t) =>
     .filter((n) => n && distance(t, n) === 1);
 export const unitAt = (s, tile) => s.units.find((u) => u.tile === tile);
 export const passable = (t) => t && !["water", "mountain"].includes(t.terrain);
+// Unit traversal is separate from buildable land and canonical map connectivity.
+export const canTraverse = (s, t, owner) =>
+  !!t &&
+  (passable(t) ||
+    (t.terrain === "water" &&
+      (factionId(s, owner) === "water" || has(s, owner, "frozenpaths"))) ||
+    (t.terrain === "mountain" && factionId(s, owner) === "mountain"));
 const clone = (s) => structuredClone(s);
 function random(seed) {
   let a = seed >>> 0;
@@ -295,7 +312,7 @@ export function reachable(s, u) {
     queue.sort((a, b) => costs.get(a) - costs.get(b));
     const cur = queue.shift();
     for (const t of neighbors(s, s.tiles[cur])) {
-      if (!passable(t) || unitAt(s, t.id)) continue;
+      if (!canTraverse(s, t, u.owner) || unitAt(s, t.id)) continue;
       const from = s.tiles[cur];
       const road =
         has(s, u.owner, "logistics") &&
@@ -306,7 +323,15 @@ export function reachable(s, u) {
         !contested(s, from) &&
         !contested(s, t);
       const cost =
-        costs.get(cur) + (road ? 0.5 : t.terrain === "forest" ? 2 : 1);
+        costs.get(cur) +
+        (road
+          ? 0.5
+          : t.terrain === "forest" ||
+              (t.terrain === "water" &&
+                !has(s, u.owner, "oceanways") &&
+                !has(s, u.owner, "frozenpaths"))
+            ? 2
+            : 1);
       if (cost <= max && cost < (costs.get(t.id) ?? Infinity)) {
         costs.set(t.id, cost);
         queue.push(t.id);
@@ -321,6 +346,8 @@ export function healAmount(s, unit) {
   const t = s.tiles[unit.tile];
   return (
     4 +
+    Number(factionId(s, unit.owner) === "desert" && t.terrain === "grass") * 2 +
+    Number(has(s, unit.owner, "rekindle")) * 2 +
     Number(
       factionId(s, unit.owner) === "stone" &&
         t.owner === unit.owner &&
@@ -332,6 +359,9 @@ function protection(s, unit) {
   const t = s.tiles[unit.tile];
   return (
     (t.terrain === "forest" ? 1 : 0) +
+    Number(t.terrain === "grass" && factionId(s, unit.owner) === "ice") +
+    Number(t.terrain === "water" && has(s, unit.owner, "oceanways")) +
+    Number(t.terrain === "mountain" && has(s, unit.owner, "summitguard")) * 2 +
     (t.city &&
     t.owner === unit.owner &&
     s.players[unit.owner].tech.includes("masonry")
@@ -362,7 +392,7 @@ export function combatPreview(s, attacker, defender) {
       ? Math.max(
           1,
           Math.ceil(
-            (unitStats(s, defender).attack * remaining) /
+            (unitStats(s, { ...defender, hp: remaining }).attack * remaining) /
               unitStats(s, defender).hp,
           ) - protection(s, attacker),
         )
@@ -686,7 +716,7 @@ export function aiTurn(state, owner = 1) {
       const frontier = s.tiles.filter(
         (t) =>
           known.has(t.id) &&
-          passable(t) &&
+          canTraverse(s, t, owner) &&
           neighbors(s, t).some((n) => !known.has(n.id)),
       );
       const options = reachable(s, u);
@@ -717,7 +747,11 @@ export function aiTurn(state, owner = 1) {
       while (queue.length) {
         const cur = queue.shift();
         for (const n of neighbors(s, s.tiles[cur]))
-          if (passable(n) && known.has(n.id) && !distances.has(n.id)) {
+          if (
+            canTraverse(s, n, owner) &&
+            known.has(n.id) &&
+            !distances.has(n.id)
+          ) {
             distances.set(n.id, distances.get(cur) + 1);
             queue.push(n.id);
           }
@@ -743,6 +777,11 @@ export function aiTurn(state, owner = 1) {
       ember: ["training", "tactics"],
       stone: ["engineering"],
       tide: ["irrigation", "commerce"],
+      desert: ["archery", "training"],
+      ice: ["engineering", "trails"],
+      fire: ["training"],
+      water: ["trails", "irrigation"],
+      mountain: ["engineering", "trails"],
     }[factionId(s, owner)] ?? []),
     "agriculture",
     "archery",
@@ -815,7 +854,9 @@ export function aiTurn(state, owner = 1) {
             ? "sentinel"
             : factionId(s, owner) === "ember"
               ? "archer"
-              : factionId(s, owner) === "stone"
+              : ["stone", "ice", "fire", "mountain"].includes(
+                    factionId(s, owner),
+                  )
                 ? "guardian"
                 : s.players[owner].tech.includes("archery") && s.round % 3 === 0
                   ? "archer"
@@ -937,7 +978,7 @@ export function validateSave(s) {
         int(u.id, 1, s.nextId - 1) &&
         [0, 1].includes(u.owner) &&
         int(u.tile, 0, mapSize(s) ** 2 - 1) &&
-        passable(s.tiles[u.tile]) &&
+        canTraverse(s, s.tiles[u.tile], u.owner) &&
         Object.hasOwn(UNITS, u.type) &&
         int(u.hp, 1, s.version === 1 ? UNITS[u.type].hp : unitStats(s, u).hp) &&
         typeof u.moved === "boolean" &&

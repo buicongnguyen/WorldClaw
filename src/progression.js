@@ -1,6 +1,49 @@
 // Shared registries and derived rules: the UI and command engine use the same gates.
 import { factionId } from "./factions.js";
 export const TECHS = {
+  dunewarfare: {
+    name: "Dune Warfare",
+    faction: "desert",
+    requires: "training",
+    cost: 12,
+    branch: "Faction mastery",
+    description: "Scouts gain +1 attack while standing on a meadow.",
+  },
+  frozenpaths: {
+    name: "Frozen Paths",
+    faction: "ice",
+    requires: "engineering",
+    cost: 12,
+    branch: "Faction mastery",
+    description:
+      "Your units cross water at 1 movement each. Other armies cannot use your ice paths.",
+  },
+  rekindle: {
+    name: "Rekindle",
+    faction: "fire",
+    requires: "training",
+    cost: 12,
+    branch: "Faction mastery",
+    description:
+      "Rest restores +2 HP, helping melee units regain their full-health attack bonus.",
+  },
+  oceanways: {
+    name: "Oceanways",
+    faction: "water",
+    requires: "irrigation",
+    cost: 12,
+    branch: "Faction mastery",
+    description:
+      "Water movement costs 1 instead of 2, and units gain +1 protection while on water.",
+  },
+  summitguard: {
+    name: "Summit Guard",
+    faction: "mountain",
+    requires: "engineering",
+    cost: 12,
+    branch: "Faction mastery",
+    description: "Units gain +2 protection while standing on mountains.",
+  },
   groveguard: {
     name: "Groveguard",
     faction: "canopy",

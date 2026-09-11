@@ -6,7 +6,7 @@ New expeditions use **17×17 islands**, eight neutral villages and a 40-round li
 
 **[Play on GitHub Pages](https://buicongnguyen.github.io/WorldClaw/)**
 
-Choose from **four factions** in New island: Canopy, Ember, Stoneward or Tidewell. Each starts with a different technology/unit combination, a permanent trait, and an exclusive advanced research branch. You can also choose the AI faction. See [faction rules and save compatibility](docs/FACTIONS.md). Older saves retain classic rules.
+Choose from **nine factions** in New island, including Desert, Ice, Fire, Water and Mountain tribes. Each has starting technology, a permanent trait, and an exclusive advanced research branch. Water armies can cross seas; Mountain armies can cross peaks; Ice armies unlock water crossing through research. You can also choose the AI faction. See [faction rules and save compatibility](docs/FACTIONS.md). Older saves retain their existing identities and rules.
 
 Original low-poly meshes, names and rules inspired by compact turn-based 4X games such as The Battle of Polytopia. This is an independent single-player prototype, not affiliated with Midjiwan or Tencent.
 

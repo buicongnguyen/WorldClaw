@@ -20,7 +20,7 @@ import {
   armyColor,
 } from "../src/factions.js";
 
-test("four starting identities preserve maps and grant their native technology and army", () => {
+test("nine starting identities preserve maps and grant their native technology and army", () => {
   for (const key of PLAYABLE_FACTIONS) {
     const s = createGame(417, 17, [key, key]),
       f = FACTION_TYPES[key];

@@ -492,9 +492,23 @@ export function createWorld(host, onPick) {
       const t = s.tiles[u.tile],
         g = new THREE.Group();
       g.name = `Unit_${u.id}_${u.type}`;
-      g.position.set(t.x - center, t.city ? 0.25 : 0, t.z - center);
+      const unitElevation = t.terrain === "mountain" ? 0.95 : t.city ? 0.25 : 0;
+      g.position.set(t.x - center, unitElevation, t.z - center);
       board.add(g);
       const color = factionColors[u.owner];
+      if (t.terrain === "water") {
+        // Keep amphibious armies visually supported above the sea surface.
+        const frozen = s.players[u.owner].tech.includes("frozenpaths");
+        mesh(
+          g,
+          "Box",
+          [0.62, 0.14, 0.62],
+          frozen ? 0xc4edf5 : 0x88664b,
+          0,
+          0.23,
+          0,
+        );
+      }
       if (art) {
         mesh(g, "Cylinder", [0.23, 0.26, 0.045, 24], color, 0, 0.35, 0);
         art.add(
@@ -520,7 +534,7 @@ export function createWorld(host, onPick) {
         addLabel(
           `${u.hp} ${u.owner === 0 && !u.attacked ? "•" : ""}`,
           t.x - center,
-          1.5 + (t.city ? 0.25 : 0),
+          1.5 + unitElevation,
           t.z - center,
           `hp-label owner-${u.owner} ${u.moved && u.attacked ? "spent" : ""}`,
         );
@@ -574,7 +588,7 @@ export function createWorld(host, onPick) {
       addLabel(
         `${u.hp} ${u.owner === 0 && !u.attacked ? "•" : ""}`,
         t.x - center,
-        1.4 + (t.city ? 0.25 : 0),
+        1.4 + unitElevation,
         t.z - center,
         `hp-label owner-${u.owner} ${u.moved && u.attacked ? "spent" : ""}`,
       );
@@ -620,7 +634,7 @@ export function createWorld(host, onPick) {
         [radius - 0.035, radius, 4],
         c,
         t.x - center,
-        0.34,
+        t.terrain === "mountain" ? 1.3 : 0.34,
         t.z - center,
       );
       ring.rotation.x = -Math.PI / 2;
