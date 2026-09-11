@@ -1,5 +1,7 @@
 # Map scale and progression evaluation
 
+Implementation update: the proposal below is retained as historical evaluation. Research chains, city specialization, farm upgrades, roads, veterans, occupation, AI support and migration are now implemented. See [current rules and verification](PROGRESSION_RELEASE.md), which supersedes the “not yet implemented” sections below.
+
 Date: 2026-09-11. Based on the actual rules and 100 generated seeds per map size. This is a design/code evaluation, not a human playtest.
 
 ## Map verdict: expand the default, keep a quick mode

@@ -157,6 +157,7 @@ test("technology and land development cannot charge twice", () => {
   s = act(s, { type: "research", tech: "archery" });
   assert.equal(s.players[0].stars, 5);
   assert.ok(command(s, { type: "research", tech: "archery" }).error);
+  s.players[0].tech.push("agriculture");
   const tile = s.tiles.find((t) => t.owner === 0 && !t.city && passable(t));
   s = act(s, { type: "improve", tile: tile.id });
   assert.equal(s.players[0].stars, 1);
@@ -197,6 +198,10 @@ test("capital and beacon victories freeze all future commands", () => {
   s.units[1].tile = idAt(8, 2);
   s.explored[0] = s.tiles.map((t) => t.id);
   s = act(s, { type: "move", unit: 1, tile: idAt(8, 3) });
+  assert.equal(s.winner, null);
+  s = act(s, { type: "end" });
+  assert.equal(s.winner, null);
+  s = act(s, { type: "end" });
   assert.equal(s.winner, 0);
   assert.ok(command(s, { type: "end" }).error);
   s = createGame();

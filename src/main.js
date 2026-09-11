@@ -15,7 +15,16 @@ import {
   validateSave,
   mapSize,
   roundLimit,
+  unitStats,
+  tileIncome,
+  recruitReason,
+  researchReason,
+  developmentReason,
+  promotionReason,
+  migrateSave,
+  BUILDINGS,
 } from "./game.js";
+import { SPECIALIZATIONS } from "./progression.js";
 import { createWorld } from "./world.js";
 
 const SAVE_KEY = "crown-canopy-v1";
@@ -39,7 +48,10 @@ try {
   if (raw) {
     const saved = JSON.parse(raw);
     if (validateSave(saved)) {
-      state = saved;
+      state = migrateSave(saved);
+      if (saved.version === 1)
+        saveNotice =
+          "Save upgraded: your cities, estates and learned technology are preserved.";
       selectedUnit = state.units.find((u) => u.owner === 0)?.id ?? null;
       selectedTile =
         state.units.find((u) => u.id === selectedUnit)?.tile ??
@@ -147,6 +159,12 @@ function act(action) {
 function actionButton(label, action, disabled = false, klass = "") {
   return `<button class="action ${klass}" data-command='${JSON.stringify(action)}' ${disabled ? "disabled" : ""}>${label}</button>`;
 }
+function gatedButton(label, action, reason) {
+  return (
+    actionButton(label, action, busy || state.winner !== null || !!reason) +
+    (reason ? `<small class="action-reason">${escape(reason)}</small>` : "")
+  );
+}
 function render() {
   const p = state.players[0];
   $("#stars").textContent = p.stars;
@@ -196,7 +214,7 @@ function render() {
   };
   let html = `<div class="eyebrow">${u ? "COMMAND YOUR PEOPLE" : "EXPLORE THE ISLAND"}<span>${known ? `${t.x + 1} · ${t.z + 1}` : ""}</span></div>`;
   if (u) {
-    html += `<h3>♙ ${UNITS[u.type].name} <span class="health">${u.hp}/${UNITS[u.type].hp} HP</span></h3><p class="unit-status">${u.attacked ? "Actions spent · ready next turn" : u.moved ? "Moved · can still attack" : "Ready to move and attack"}</p><p class="unit-status">Attack ${UNITS[u.type].attack} · Range ${UNITS[u.type].range} · Movement ${UNITS[u.type].move + (p.tech.includes("trails") ? 1 : 0)}</p>`;
+    html += `<h3>♙ ${UNITS[u.type].name} <span class="health">${u.hp}/${unitStats(state, u).hp} HP</span></h3><p class="unit-status">${u.attacked ? "Actions spent · ready next turn" : u.moved ? "Moved · can still attack" : "Ready to move and attack"}</p><p class="unit-status">Attack ${unitStats(state, u).attack} · Range ${UNITS[u.type].range} · Movement ${unitStats(state, u).move}</p>`;
     if (known && reachable(state, u).includes(t.id))
       html += actionButton(
         `Move to ${terrainName[t.terrain]} →`,
@@ -218,7 +236,12 @@ function render() {
           "danger",
         );
     }
-    if (!u.moved && !u.attacked && u.hp < UNITS[u.type].hp)
+    if (
+      !u.moved &&
+      !u.attacked &&
+      u.hp < unitStats(state, u).hp &&
+      !state.tiles[u.tile].occupation
+    )
       html += actionButton(
         "Rest · recover 4 HP",
         { type: "heal", unit: u.id },
@@ -226,41 +249,63 @@ function render() {
       );
     html +=
       '<p class="selection-tip">Select a mint outline to move. Select a rival to preview combat.</p>';
+    html += `<p class="unit-status">${u.xp} XP · Veteran ${u.rank}/2${u.promotion ? ` · ${u.promotion}` : ""}. Combat survival +1 XP; defeat an enemy +3; capture +2.</p>`;
+    if (u.rank < 2)
+      for (const choice of u.promotion
+        ? [u.promotion]
+        : ["mobility", "resilience"])
+        html += gatedButton(
+          `Train ${choice}<small>✦ ${u.rank ? 7 : 4} · +1 attack, ${choice === "mobility" ? "+1 movement" : "+2 maximum HP"}</small>`,
+          { type: "promote", unit: u.id, choice },
+          promotionReason(state, u, choice),
+        );
   }
   if (known) {
-    html += `<div class="tile-info"><strong>${escape(t.city?.name ?? (t.beacon ? "Ancient beacon" : terrainName[t.terrain]))}</strong><small>${t.owner === null ? "Unclaimed" : FACTIONS[t.owner]}${t.city ? ` · Level ${t.city.level}` : t.improved ? " · Estate +1 income" : ""}</small></div>`;
-    if (t.owner === 0 && t.city) {
-      html += '<div class="recruit-grid">';
-      for (const [kind, def] of Object.entries(UNITS))
-        html += actionButton(
-          `${def.name}<small>✦ ${def.cost}</small>`,
-          { type: "recruit", tile: t.id, kind },
-          busy ||
-            !!tileUnit ||
-            p.stars < def.cost ||
-            (kind === "archer" && !p.tech.includes("archery")),
+    html += `<div class="tile-info"><strong>${escape(t.city?.name ?? (t.beacon ? "Ancient beacon" : terrainName[t.terrain]))}</strong><small>${t.owner === null ? "Unclaimed" : FACTIONS[t.owner]}${t.city ? ` · Level ${t.city.level}` : t.improved ? ` · ${BUILDINGS[t.building].name}` : ""}</small></div>`;
+    if (t.occupation)
+      html += `<p class="combat-preview">⚑ ${FACTIONS[t.occupation.owner]} is occupying this city. Capture completes after ${FACTIONS[t.owner]}'s turn. Remove the occupier to restore income.</p>`;
+    if (t.territory !== null)
+      html += `<p class="selection-tip">Territory: ${escape(state.explored[0].includes(t.territory) ? state.tiles[t.territory].city.name : "Uncharted settlement")}</p>`;
+    if (t.owner === 0) {
+      html += `<p class="unit-status">Tile income: +${tileIncome(state, t)} / turn${t.road ? " · Road" : ""}${t.building ? ` · ${BUILDINGS[t.building].name}` : ""}</p>`;
+      if (t.city) {
+        html += `<p class="unit-status">${t.city.specialization ?? "No specialization"} · ${t.city.fortification ?? "No stronghold upgrade"}</p><div class="recruit-grid">`;
+        for (const [kind, def] of Object.entries(UNITS))
+          html += `<div>${gatedButton(`${def.name}<small>✦ ${def.cost}</small>`, { type: "recruit", tile: t.id, kind }, recruitReason(state, t, kind))}</div>`;
+        html += "</div>";
+        for (const [kind, def] of Object.entries(SPECIALIZATIONS)) {
+          const retrofit =
+            t.city.level >= def.level &&
+            !t.city[def.level === 2 ? "specialization" : "fortification"];
+          if (t.city.level + 1 !== def.level && !retrofit) continue;
+          const type = retrofit ? "specialize" : "upgrade";
+          html += gatedButton(
+            `${retrofit ? "Add" : "Grow city ·"} ${def.name}<small>✦ ${def.level === 2 ? 6 : 12} · ${def.description}${retrofit ? "" : " · +1 base income"}</small>`,
+            { type, tile: t.id, kind },
+            developmentReason(state, t, type, kind),
+          );
+        }
+      } else if (!t.beacon && ["grass", "forest"].includes(t.terrain)) {
+        const kind =
+          t.building === "farm" || t.building === "estate"
+            ? "farm2"
+            : t.terrain === "forest"
+              ? "lumber"
+              : "farm";
+        if (!t.improved || kind === "farm2")
+          html += gatedButton(
+            `Build ${BUILDINGS[kind].name}<small>✦ ${BUILDINGS[kind].cost} · +${BUILDINGS[kind].income} total income</small>`,
+            { type: "improve", tile: t.id, kind },
+            developmentReason(state, t, "improve", kind),
+          );
+      }
+      if (!t.road && !t.beacon && ["grass", "forest"].includes(t.terrain))
+        html += gatedButton(
+          "Build road<small>✦ 2 · half-cost connected road movement</small>",
+          { type: "road", tile: t.id },
+          developmentReason(state, t, "road"),
         );
-      html += "</div>";
-      if (t.city.level < 3)
-        html += actionButton(
-          "Grow city <small>✦ 6 · +1 income</small>",
-          { type: "upgrade", tile: t.id },
-          busy || p.stars < 6,
-        );
-      if (tileUnit)
-        html +=
-          '<p class="selection-tip">City occupied. Move its unit before recruiting.</p>';
-    } else if (
-      t.owner === 0 &&
-      ["grass", "forest"].includes(t.terrain) &&
-      !t.beacon &&
-      !t.improved
-    )
-      html += actionButton(
-        "Build estate <small>✦ 4 · +1 income</small>",
-        { type: "improve", tile: t.id },
-        busy || p.stars < 4,
-      );
+    }
   }
   html += `<label class="tile-picker">Tile navigator<select id="tile-picker" aria-label="Select a charted tile" ${busy || state.winner !== null ? "disabled" : ""}>${state.explored[0]
     .map((id) => {
@@ -292,7 +337,7 @@ function showResearch() {
     )
       .map(
         ([key, tech]) =>
-          `<article><span class="tech-icon">${key === "archery" ? "➶" : key === "trails" ? "⌁" : "♜"}</span><div><h3>${tech.name}</h3><p>${tech.description}</p></div><button data-tech="${key}" ${state.players[0].tech.includes(key) || state.players[0].stars < tech.cost || state.active !== 0 || state.winner !== null ? "disabled" : ""}>${state.players[0].tech.includes(key) ? "Learned" : `✦ ${tech.cost}`}</button></article>`,
+          `<article><span class="tech-icon">${tech.branch === "Military" ? "➶" : tech.branch === "Economy" ? "♧" : "♜"}</span><div><small>${tech.branch}${tech.requires ? ` · ${TECHS[tech.requires].name} →` : " · Foundation"}</small><h3>${tech.name}</h3><p>${tech.description}</p><small class="action-reason">${researchReason(state, key)}</small></div><button data-tech="${key}" ${researchReason(state, key) || state.active !== 0 || state.winner !== null ? "disabled" : ""}>${state.players[0].tech.includes(key) ? "Learned" : `✦ ${tech.cost}`}</button></article>`,
       )
       .join("")}</div>`,
   );
@@ -307,7 +352,7 @@ function showResearch() {
 function showHelp() {
   const limitDescription = `This ${mapSize(state)}×${mapSize(state)} island lasts at most ${roundLimit(state)} rounds.`;
   modal(
-    `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your scout.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles and charted land stays visible.</li><li><b>Grow your realm.</b> Occupy villages to claim them. Select an empty owned city to recruit; newly recruited units act next turn. Estates cost 4 stars and add 1 income.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water and peaks cannot be crossed.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown at the start of your turn. Reach 12 or occupy the rival capital. After ${roundLimit(state)} rounds, renown, then city count, then surviving HP decide the winner.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
+    `<span class="eyebrow">YOUR FIRST EXPEDITION</span><h2>A kingdom, one turn at a time.</h2><ol class="help-list"><li><b>Explore with your scout.</b> Select a mint-outlined tile, then choose Move. Fog clears within three tiles and charted land stays visible.</li><li><b>Grow your realm.</b> Neutral villages transfer immediately. Enemy cities require occupation through one defender turn; leaving or dying cancels capture, and contested city territory produces no income. Select an empty owned city to recruit; newly recruited units act next turn. Research Agriculture, build two farms, then specialize your city as a Market or Barracks. Engineering unlocks Walls or a Workshop at level III.</li><li><b>Choose your battles.</b> Units move once and attack once. Attacking ends movement. Forests cost two movement and reduce damage by one. Water and peaks cannot be crossed.</li><li><b>Claim the beacons.</b> Each owned beacon adds 1 renown after both factions finish a round. Reach at least 12 and lead in renown to win; equal totals continue. Alternatively, complete occupation of the rival capital. After ${roundLimit(state)} rounds, renown, then city count, then surviving HP decide the winner.</li><li><b>Develop your veterans.</b> Combat and captures earn XP. At a friendly Barracks, an unused unit can train at 3 XP (Training, 4 stars) and 6 XP (Tactics, 7 stars). Pick mobility or resilience; training consumes the turn and preserves damage percentage. Logistics unlocks roads; both endpoints must be friendly roads for half-cost movement.</li></ol><p>Drag to orbit · Right-drag to pan · Pinch or scroll to zoom.<br>N selects the next unit; E ends the turn while no form control is focused. Tab navigates controls normally. Use the tile navigator for keyboard play.</p><p class="muted">Progress saves on this device. Export GLB downloads the explored board for Blender. Original game inspired by compact 4X strategy.</p>`,
   );
   const limitNote = document.createElement("p");
   limitNote.textContent = limitDescription;

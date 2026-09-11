@@ -677,9 +677,11 @@ dialog::backdrop {
   backdrop-filter: blur(6px);
 }
 .dialog-close {
-  position: absolute;
-  right: 14px;
-  top: 14px;
+  position: sticky;
+  float: right;
+  top: 0;
+  z-index: 2;
+  background: #15363c;
 }
 dialog h2 {
   font-size: 27px;
@@ -1100,4 +1102,17 @@ dialog .eyebrow {
     scroll-behavior: auto !important;
     transition: none !important;
   }
+}
+.action-reason {
+  display: block;
+  color: #afc6c9;
+  font-size: 10px;
+  line-height: 1.5;
+  margin: 3px 0 9px;
+}
+.recruit-grid > div {
+  min-width: 0;
+}
+.recruit-grid .action {
+  width: 100%;
 }

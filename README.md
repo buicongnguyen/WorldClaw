@@ -1,8 +1,8 @@
 # Crown & Canopy
 
-A playable 3D island strategy game: explore the unknown, grow settlements, research new abilities, and outmaneuver the Ember Court. Win by earning 12 beacon renown or capturing the rival capital.
+A playable 3D island strategy game: explore the unknown, grow settlements, research new abilities, and outmaneuver the Ember Court. Win with at least 12 beacon renown and a lead after a full round, or complete occupation of the rival capital.
 
-New expeditions use **17×17 islands**, eight neutral villages and a 40-round limit. **New island** also offers the original 11×11 / 30-round quick skirmish. Existing saves keep their original map. See the [map and progression evaluation](docs/PROGRESSION_EVALUATION.md) for measured map comparisons and proposed research, building and occupation chains.
+New expeditions use **17×17 islands**, eight neutral villages and a 40-round limit. **New island** also offers the original 11×11 / 30-round quick skirmish. Existing saves keep their original map. Connected research, specialized buildings, veterans and occupation are now implemented; see [progression rules and review](docs/PROGRESSION_RELEASE.md).
 
 **[Play on GitHub Pages](https://buicongnguyen.github.io/WorldClaw/)**
 
@@ -10,7 +10,9 @@ Original low-poly meshes, names and rules inspired by compact turn-based 4X game
 
 ## Play
 
-Select your scout, select a mint-outlined tile, then choose **Move** in the inspector. Occupy villages and beacons to claim them. Select an empty owned city to recruit. **End turn** lets the AI act and collects your next income. Research opens archers, additional movement and city protection.
+Select your scout, select a mint-outlined tile, then choose **Move** in the inspector. Neutral villages and beacons transfer immediately; enemy cities require an occupier to survive the defender's turn. Select an empty owned city to recruit. **End turn** lets the AI act and collects your next income.
+
+Research Agriculture → Irrigation → Commerce, Archery → Training → Tactics, or Masonry → Engineering → Logistics. Trailcraft improves exploration. Build two farms in a city's territory, then choose Market or Barracks at level II; level III adds Walls or a Workshop. Workshops recruit sentinels. Combat and captures earn XP; train veterans at friendly barracks. Unavailable actions explain their requirements.
 
 Drag the island to orbit; right-drag to pan; scroll or pinch to zoom. The tile navigator supports keyboard play. Use **?** for complete rules. Progress automatically saves on this browser/device. **New island** asks before replacing the save.
 

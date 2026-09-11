@@ -123,3 +123,129 @@ test("beacon victory resolves on resumed AI turn and disables gameplay", async (
   await expect(page.locator("dialog")).toContainText("The canopy endures.");
   await expect(page.locator("#end-turn")).toBeDisabled();
 });
+
+test("progression UI: prerequisites, farms, barracks, veteran training and workshop", async ({
+  page,
+}) => {
+  const s = createGame();
+  s.players[0].stars = 500;
+  s.units[0].tile = idAt(2, 7);
+  s.units[0].xp = 6;
+  await page.addInitScript((save) => {
+    if (!localStorage.getItem("crown-canopy-v1"))
+      localStorage.setItem("crown-canopy-v1", JSON.stringify(save));
+  }, s);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await page.locator("#research").click();
+  await expect(page.locator('[data-tech="irrigation"]')).toBeDisabled();
+  await expect(page.locator("dialog")).toContainText("Requires Agriculture");
+  for (const key of [
+    "agriculture",
+    "archery",
+    "training",
+    "masonry",
+    "engineering",
+    "irrigation",
+    "commerce",
+    "tactics",
+    "logistics",
+  ])
+    await page.locator(`[data-tech="${key}"]`).click();
+  await page.screenshot({ path: "test-results/research-tree.png" });
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  for (const tile of s.tiles
+    .filter((t) => t.territory === idAt(2, 7) && t.owner === 0)
+    .slice(0, 2)) {
+    await page.locator("#tile-picker").selectOption(String(tile.id));
+    await page.getByRole("button", { name: /Build Farm I / }).click();
+  }
+  await page.locator("#tile-picker").selectOption(String(idAt(2, 7)));
+  await page.getByRole("button", { name: /Grow city · Barracks/ }).click();
+  await page.getByRole("button", { name: /Train resilience/ }).click();
+  await expect(page.locator(".health")).toHaveText("10/10 HP");
+  await page.getByRole("button", { name: /Grow city · Workshop/ }).click();
+  await page.getByRole("button", { name: /Build road/ }).click();
+  await page.locator("#end-turn").click();
+  await expect(page.locator("#turn-label")).toHaveText("Your turn");
+  await page.getByRole("button", { name: /Train resilience/ }).click();
+  await expect(page.locator(".health")).toHaveText("12/12 HP");
+  await page.screenshot({
+    path: "test-results/progression-city.png",
+    fullPage: true,
+  });
+  await page.reload();
+  await expect(page.locator(".health")).toHaveText("12/12 HP");
+  expect(
+    await page.evaluate(
+      () => window.__game.getState().tiles[79].city.fortification,
+    ),
+  ).toBe("workshop");
+});
+
+test("enemy capital shows occupation before surviving the defender's turn", async ({
+  page,
+}) => {
+  const s = createGame();
+  s.units[0].tile = idAt(7, 3);
+  s.units[0].type = "guardian";
+  s.units[0].hp = 12;
+  s.units[1].tile = idAt(3, 3);
+  s.explored[0] = s.tiles.map((t) => t.id);
+  await page.addInitScript(
+    (save) => localStorage.setItem("crown-canopy-v1", JSON.stringify(save)),
+    s,
+  );
+  await page.goto("/");
+  await page.locator("#tile-picker").selectOption(String(idAt(8, 3)));
+  await page.getByRole("button", { name: /Move to/ }).click();
+  await expect(page.locator("#inspector")).toContainText(
+    "is occupying this city",
+  );
+  await expect(page.locator("dialog")).not.toBeVisible();
+  await page.locator("#end-turn").click();
+  await expect(page.locator("dialog")).toContainText(
+    "captured the rival capital after surviving",
+  );
+});
+
+test("legacy cities migrate and mobile research remains scrollable", async ({
+  page,
+}) => {
+  const s = createGame();
+  s.version = 1;
+  s.tiles[79].city.level = 2;
+  s.players[0].stars = 99;
+  for (const t of s.tiles) {
+    delete t.building;
+    delete t.territory;
+    delete t.road;
+    delete t.occupation;
+    if (t.city) {
+      delete t.city.specialization;
+      delete t.city.fortification;
+    }
+  }
+  for (const u of s.units) {
+    delete u.rank;
+    delete u.xp;
+    delete u.promotion;
+  }
+  await page.addInitScript(
+    (save) => localStorage.setItem("crown-canopy-v1", JSON.stringify(save)),
+    s,
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.locator("#tile-picker").selectOption("79");
+  await expect(page.locator("#inspector")).toContainText("Add Market");
+  await page.locator("#research").click();
+  await page.locator('[data-tech="trails"]').click();
+  await expect(page.locator('[data-tech="trails"]')).toHaveText("Learned");
+  await page.screenshot({ path: "test-results/mobile-research.png" });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});

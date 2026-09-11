@@ -261,6 +261,16 @@ export function createWorld(host, onPick) {
             -0.25 + j * 0.16,
           );
         mesh(g, "Box", [0.035, 0.23, 0.035], 0xe3d2aa, -0.34, 0.4, -0.3);
+        if (t.building === "farm2") house(g, 0.18, -0.2, 0xe3bf68, 0.7);
+        if (t.building === "lumber") {
+          tree(g, -0.18, -0.15, 0.65);
+          for (let j = 0; j < 3; j++)
+            mesh(g, "Box", [0.5, 0.1, 0.12], 0x795c47, 0, 0.4 + j * 0.09, 0.17);
+        }
+      }
+      if (t.road) {
+        mesh(g, "Box", [0.94, 0.025, 0.16], 0xc3b994, 0, 0.335, 0);
+        mesh(g, "Box", [0.16, 0.025, 0.94], 0xc3b994, 0, 0.337, 0);
       }
       if (t.city) {
         const c =
@@ -268,6 +278,27 @@ export function createWorld(host, onPick) {
         house(g, -0.2, 0.17, c, 0.9);
         house(g, 0.22, 0.12, c, 0.75);
         house(g, 0, -0.18, c, t.city.capital !== null ? 1.5 : 1.15);
+        if (t.city.level >= 2) house(g, -0.3, -0.28, c, 0.65);
+        if (t.city.specialization === "market") {
+          mesh(g, "Box", [0.42, 0.07, 0.25], 0xe3bf68, 0.15, 0.85, 0.28).name =
+            "Market_awning";
+        }
+        if (t.city.specialization === "barracks") {
+          mesh(g, "Box", [0.23, 0.33, 0.09], 0x75e4c0, -0.3, 0.75, 0.33).name =
+            "Barracks_shield";
+        }
+        if (t.city.level >= 3)
+          mesh(g, "Box", [0.18, 1.1, 0.18], 0xd4d6c4, -0.34, 0.8, -0.32);
+        if (t.city.fortification === "walls")
+          for (const z of [-0.43, 0.43])
+            mesh(g, "Box", [0.9, 0.3, 0.08], 0xa5b9b3, 0, 0.46, z).name =
+              "Stronghold_wall";
+        if (t.city.fortification === "workshop")
+          mesh(g, "Box", [0.13, 0.6, 0.13], 0x795c47, 0.28, 0.85, 0.2).name =
+            "Workshop_chimney";
+        if (t.occupation)
+          mesh(g, "Octahedron", [0.18, 0], 0xffb879, 0, 1.8, 0).name =
+            "Occupation_marker";
         mesh(g, "Cylinder", [0.025, 0.025, 0.9, 5], 0xc5ac73, 0.32, 0.76, -0.3);
         mesh(
           g,
@@ -279,7 +310,7 @@ export function createWorld(host, onPick) {
           -0.3,
         );
         addLabel(
-          `${t.city.capital !== null ? "♛ " : ""}${t.city.name}`,
+          `${t.occupation ? "⚑ " : t.city.capital !== null ? "♛ " : ""}${t.city.name}${t.city.level > 1 ? ` ${["", "I", "II", "III"][t.city.level]}` : ""}`,
           t.x - center,
           0.2,
           t.z - center + 0.45,
@@ -358,8 +389,20 @@ export function createWorld(host, onPick) {
         0.07,
       );
       weapon.rotation.z = -0.2;
-      if (u.type === "guardian")
+      if (u.type === "guardian" || u.type === "sentinel")
         mesh(g, "Box", [0.17, 0.24, 0.04], color, -0.15, 0.66, 0.13);
+      if (u.type === "sentinel")
+        mesh(g, "Box", [0.24, 0.08, 0.12], 0xc6ccca, 0, 0.78, 0.05);
+      if (u.rank)
+        mesh(
+          g,
+          "Octahedron",
+          [0.075 + u.rank * 0.02, 0],
+          0xfbd77d,
+          0,
+          1.2,
+          0.05,
+        ).name = `Veteran_rank_${u.rank}`;
       addLabel(
         `${u.hp} ${u.owner === 0 && !u.attacked ? "•" : ""}`,
         t.x - center,
