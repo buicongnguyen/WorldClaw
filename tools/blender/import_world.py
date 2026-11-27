@@ -25,4 +25,7 @@ bpy.context.object.rotation_euler = (0.5, -0.3, -0.6)
 bpy.context.object.data.energy = 3
 scene.world = bpy.data.worlds.new('Island sky')
 scene.world.color = (0.18, 0.23, 0.26)
+if bpy.app.version >= (5, 0) and scene.world.node_tree:  # 5.x: new worlds have nodes that override world.color
+    for n in scene.world.node_tree.nodes:
+        if n.type == 'BACKGROUND': n.inputs['Color'].default_value = (0.18, 0.23, 0.26, 1)
 bpy.ops.wm.save_as_mainfile(filepath=str(destination))

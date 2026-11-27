@@ -1,4 +1,4 @@
-"""Reproducible original game art. Run with Blender 4.5+ in a disposable background process.
+"""Reproducible original game art. Run with Blender 5.2.5 LTS in a disposable background process.
 blender --background --python tools/blender/build_assets.py -- <repository root>
 Produces public/models/kingdom.glb and art/kingdom.blend (both intentionally regenerated).
 """
@@ -305,7 +305,7 @@ if __name__ == '__main__':
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.export_scene.gltf(filepath=str(OUT/'kingdom.glb'), export_format='GLB', use_selection=True, export_apply=True, export_cameras=False, export_lights=False, export_yup=True, export_image_format='AUTO')
     stats={name: {'vertices':len(o.data.vertices),'triangles':sum(len(p.vertices)-2 for p in o.data.polygons)} for name,o in assets.items()}
-    (OUT/'manifest.json').write_text(json.dumps({'generator':'Blender 4.5.9','assets':stats},indent=2))
+    (OUT/'manifest.json').write_text(json.dumps({'generator':'Blender '+bpy.app.version_string,'assets':stats},indent=2))
     # Arrange the editable source as a clean catalog, after export of centered prototypes.
     for i,o in enumerate(assets.values()): o.location=((i%5)*1.5,(i//5)*1.5,0)
     bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'kingdom.blend'))

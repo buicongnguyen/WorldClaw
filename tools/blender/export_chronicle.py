@@ -12,5 +12,5 @@ for name in names:
     obj.location=(0,0,0);obj.hide_set(False);obj.select_set(True);obj.data.calc_loop_triangles()
     stats[name]={'triangles':len(obj.data.loop_triangles),'bounds':list(obj.dimensions)}
 bpy.ops.export_scene.gltf(filepath=str(root/'public/models/chronicle.glb'),export_format='GLB',use_selection=True,export_apply=True,export_cameras=False,export_lights=False,export_yup=True)
-(root/'public/models/chronicle-manifest.json').write_text(json.dumps({'generator':'Blender 4.5.9','assets':stats},indent=2)+'\n')
+(root/'public/models/chronicle-manifest.json').write_text(json.dumps({'generator':'Blender '+bpy.app.version_string,'assets':stats},indent=2)+'\n')
 print('EDITED_CHRONICLE_EXPORTED')

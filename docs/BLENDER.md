@@ -1,10 +1,10 @@
 # Blender asset pipeline
 
-The game loads three original Blender packs: 19 environment/legacy prototypes in `art/kingdom.blend` → `public/models/kingdom.glb`, 65 modular army prototypes in `art/armies.blend` → `public/models/armies.glb`, and three story landmarks in `art/chronicle.blend` → `public/models/chronicle.glb`. Portable Blender stays in ignored `.tooling/`, not the deployment.
+The game loads three original Blender packs: 19 environment/legacy prototypes in `art/kingdom.blend` → `public/models/kingdom.glb`, 65 modular army prototypes in `art/armies.blend` → `public/models/armies.glb`, and three story landmarks in `art/chronicle.blend` → `public/models/chronicle.glb`. Blender is the machine's shared install, not part of the repository or the deployment.
 
 ## Rebuild or edit
 
-Created and tested with Blender 4.5.9 LTS. The deterministic generator builds beveled architecture, slate roofs, timber frames, masonry towers, vegetation, rocks, crops, armored soldiers and beacons, with packed albedo/normal textures and metal/rough materials.
+Created with Blender 4.5.9 LTS; built and tested with Blender 5.2.5 LTS (`C:/tools/blender/blender-5.2.5-windows-x64/blender.exe`, the `blender` below) since 2026-11-27. The deterministic generator builds beveled architecture, slate roofs, timber frames, masonry towers, vegetation, rocks, crops, armored soldiers and beacons, with packed albedo/normal textures and metal/rough materials.
 
 ```sh
 # Regenerate original models; replaces the generated .blend and GLB.

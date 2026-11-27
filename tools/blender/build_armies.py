@@ -243,7 +243,7 @@ out=ROOT/'public/models';out.mkdir(parents=True,exist_ok=True)
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.export_scene.gltf(filepath=str(out/'armies.glb'),export_format='GLB',use_selection=True,export_apply=True,export_cameras=False,export_lights=False,export_yup=True)
 stats={name:{'vertices':len(o.data.vertices),'triangles':sum(len(p.vertices)-2 for p in o.data.polygons),'bounds':[list(map(float,o.dimensions))]} for name,o in assets.items()}
-(out/'armies-manifest.json').write_text(json.dumps({'generator':'Blender 4.5.9','assets':stats},indent=2))
+(out/'armies-manifest.json').write_text(json.dumps({'generator':'Blender '+bpy.app.version_string,'assets':stats},indent=2))
 for i,o in enumerate(assets.values()):o.location=((i%8)*1.5,(i//8)*1.5,0)
 bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'art/armies.blend'))
 print('ARMIES_BUILD_OK',len(assets),sum(x['triangles'] for x in stats.values()))
@@ -267,6 +267,8 @@ def label(text,x,y):
 scene=bpy.context.scene;scene.render.engine='CYCLES';scene.cycles.samples=20;scene.cycles.use_denoising=True
 if scene.world is None:scene.world=bpy.data.worlds.new('Army studio')
 scene.world.color=(.22,.22,.22)
+# Blender 5.x gives new worlds a node tree whose Background (0.05) overrides world.color; keep the 4.5 look.
+if bpy.app.version>=(5,0) and scene.world.node_tree:[n.inputs['Color'].default_value.foreach_set((.22,.22,.22,1)) for n in scene.world.node_tree.nodes if n.type=='BACKGROUND']
 bpy.ops.object.light_add(type='AREA',location=(1,-3,8));bpy.context.object.data.energy=1700;bpy.context.object.data.shape='DISK';bpy.context.object.data.size=7
 bpy.ops.object.camera_add(location=(5,-10,10));camera=bpy.context.object;camera.rotation_euler=(Vector((4,1,0))-camera.location).to_track_quat('-Z','Y').to_euler();camera.data.type='ORTHO';camera.data.ortho_scale=10.5;scene.camera=camera
 scene.render.resolution_x=1800;scene.render.resolution_y=1000;scene.render.resolution_percentage=100

@@ -74,7 +74,7 @@ for name, builder in [('meridian_archive',archive),('meridian_wreck',wreck),('me
 out=root/'public/models'
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.export_scene.gltf(filepath=str(out/'chronicle.glb'),export_format='GLB',use_selection=True,export_apply=True,export_cameras=False,export_lights=False,export_yup=True)
-manifest={'generator':'Blender 4.5.9','assets':{n:{'triangles':sum(len(p.vertices)-2 for p in o.data.polygons),'bounds':list(o.dimensions)} for n,o in assets.items()}}
+manifest={'generator':'Blender '+bpy.app.version_string,'assets':{n:{'triangles':sum(len(p.vertices)-2 for p in o.data.polygons),'bounds':list(o.dimensions)} for n,o in assets.items()}}
 (out/'chronicle-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 for i,o in enumerate(assets.values()):o.location=(i*1.4,0,0)
 bpy.ops.wm.save_as_mainfile(filepath=str(root/'art/chronicle.blend'))
@@ -84,6 +84,8 @@ for i,name in enumerate(['THE LOST ARCHIVE','THE DROWNED PASSAGE','THE SILENT BE
     label=bpy.context.object;label.data.body=name;label.data.size=.069;label.data.align_x='CENTER';label.data.materials.append(gold)
 scene=bpy.context.scene;scene.render.engine='CYCLES';scene.cycles.samples=32;scene.cycles.use_denoising=True
 scene.world=bpy.data.worlds.new('Meridian studio');scene.world.color=(.16,.21,.23)
+# Blender 5.x gives new worlds a node tree whose Background (0.05) overrides world.color; keep the 4.5 look.
+if bpy.app.version>=(5,0) and scene.world.node_tree:[n.inputs['Color'].default_value.foreach_set((.16,.21,.23,1)) for n in scene.world.node_tree.nodes if n.type=='BACKGROUND']
 bpy.ops.object.light_add(type='AREA',location=(1,-3,5));bpy.context.object.data.energy=850;bpy.context.object.data.size=5
 bpy.ops.object.camera_add(location=(3,-5,4.7));camera=bpy.context.object
 camera.rotation_euler=(Vector((1.4,0,.25))-camera.location).to_track_quat('-Z','Y').to_euler();camera.data.type='ORTHO';camera.data.ortho_scale=4.8;scene.camera=camera
